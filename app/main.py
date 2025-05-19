@@ -10,7 +10,7 @@ app.include_router(shorts.router, prefix="/api/v1", tags=["shorts"])
 
 @app.get("/")
 async def root():
-    return {"message": "Welcome to YouTube Shorts Generator API"}
+    return {"message": "Welcome to YouTube Shorts Generator API hi"}
 
 if __name__ == "__main__":
     import uvicorn
