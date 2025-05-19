@@ -1,12 +1,16 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from pathlib import Path
+
+# 프로젝트 루트 디렉토리 경로 설정
+ROOT_DIR = Path.cwd()
 
 class Settings(BaseSettings):
     app_name: str = "YouTube Shorts Generator"
-    openai_api_key: str = "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"
+    openai_api_key: str
     
     class Config:
-        env_file = ".env"
+        env_file = str(ROOT_DIR / ".env")
 
 @lru_cache()
 def get_settings():
