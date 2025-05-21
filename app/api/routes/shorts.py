@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from app.models.schemas import ShortsRequest, ShortsResponse
 from app.services.openai_service import OpenAIService
+from app.services.web_scraper import AsyncWebScraper
 
 router = APIRouter()
 openai_service = OpenAIService()
@@ -15,4 +16,4 @@ async def generate_shorts(request: ShortsRequest):
         )
         return ShortsResponse(**content)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
