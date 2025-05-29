@@ -1,15 +1,15 @@
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
-from .http_exceptions import BaseHTTPException
+from .http_exceptions import BaseHTTPException, ServerException
 
-async def http_exception_handler(request: Request, exc: HTTPException):
-    # BaseHTTPException인 경우 message 사용, 아닌 경우 detail 사용
-    error_message = getattr(exc, 'message', exc.detail)
-    
+
+async def exception_handler(request: Request, exc: Exception):
+    # HTTPException이나 ServerException이 아닌 일반 예외를 ServerException으로 변환
+    if not isinstance(exc, (HTTPException, ServerException)):
+        exc = ServerException(str(exc))
+
+    # ServerException의 경우 status_code가 이미 500으로 설정되어 있을 것입니다
     return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "message": error_message,
-            "data": getattr(exc, 'data', None)
-        }
-    ) 
+        status_code=getattr(exc, "status_code", 500),
+        content={"response": {"message": str(exc), "data": getattr(exc, "data", None)}},
+    )

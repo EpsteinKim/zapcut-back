@@ -46,15 +46,143 @@ check_and_kill_port() {
 start_server() {
     local DevFlag=$1
     echo "Starting the server..."
+
+    # Ctrl+C 시그널 핸들러 설정
+    trap 'echo "\n서버들을 강제 종료합니다..."; pkill -f "uvicorn.*app.server.model_server:app"; pkill -f "uvicorn.*app.main:app"; exit 0' SIGINT
+
     if [ "$DevFlag" = "--dev" ]; then
-        uvicorn app.main:app --reload --workers 1
+        echo "메인 서버를 시작합니다..."
+        if ! uvicorn app.main:app --reload --workers 1; then
+            echo "메인 서버 실행 중 오류가 발생했습니다."
+            exit 1
+        fi
     else
         # CPU 코어 수 확인 및 worker 수 계산
         CPU_CORES=$(python3 -c "import multiprocessing; print(multiprocessing.cpu_count())")
         WORKERS=$((CPU_CORES * 2 + 1))
         echo "CPU 코어 수: $CPU_CORES, Worker 수: $WORKERS"
-        uvicorn app.main:app --workers $WORKERS
+        
+        echo "메인 서버를 시작합니다..."
+        if ! uvicorn app.main:app --workers $WORKERS; then
+            echo "메인 서버 실행 중 오류가 발생했습니다."
+            exit 1
+        fi
     fi
+}
+
+install_packages() {
+    # 가상환경 활성화
+    activate_venv
+    
+    # 모든 패키지 한 번에 설치
+    echo "패키지 설치 중..."
+    if ! pip install "$@"; then
+        echo "패키지 설치 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    # 설치된 패키지들의 버전 정보를 requirements.in에 추가
+    for package in "$@"; do
+        # extras가 있는 패키지 처리 (예: package[extra])
+        base_package_name=$(echo "$package" | sed -E 's/\[.*\]//g')
+        extras=$(echo "$package" | grep -o '\[.*\]' || echo "")
+        
+        # 패키지 이름과 버전 분리
+        package_name=$(echo "$base_package_name" | cut -d'=' -f1)
+        requested_version=$(echo "$base_package_name" | cut -d'=' -f2)
+        installed_version=$(pip show "$package_name" | grep "^Version:" | awk '{print $2}')
+        
+        if [ -z "$installed_version" ]; then
+            echo "경고: $package_name 패키지의 버전 정보를 가져올 수 없습니다."
+            continue
+        fi
+        
+        # requirements.in에 추가 (중복 방지)
+        if ! grep -q "^$package_name==" requirements.in; then
+            # 패키지가 없으면 추가 (extras 포함)
+            if [ -n "$extras" ]; then
+                echo -e "\n$package_name$extras==$installed_version" >> requirements.in
+            else
+                echo -e "\n$package_name==$installed_version" >> requirements.in
+            fi
+        elif [ -n "$requested_version" ]; then
+            # 요청된 버전이 있고, 현재 설치된 버전과 다르면 업데이트
+            if [ "$requested_version" != "$installed_version" ]; then
+                if [ -n "$extras" ]; then
+                    sed -i.bak "s/^$package_name==.*/$package_name$extras==$installed_version/" requirements.in
+                else
+                    sed -i.bak "s/^$package_name==.*/$package_name==$installed_version/" requirements.in
+                fi
+                rm -f requirements.in.bak
+            fi
+        fi
+    done
+    
+    # 연속된 개행을 하나로 줄이기
+    if [ -f requirements.in ]; then
+        sed -i.bak ':a;N;$!ba;s/\n\n\+/\n/g' requirements.in
+        rm -f requirements.in.bak
+    fi
+    
+    # requirements.txt 업데이트
+    echo "requirements.txt 업데이트 중..."
+    if ! pip-compile requirements.in; then
+        echo "requirements.txt 생성 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    if ! pip-sync requirements.txt; then
+        echo "패키지 동기화 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    echo "모든 패키지가 성공적으로 설치되었습니다."
+    return 0
+}
+
+uninstall_packages() {
+    # 가상환경 활성화
+    activate_venv
+    
+    # 모든 패키지 한 번에 제거
+    echo "패키지 제거 중..."
+    if ! pip uninstall -y "$@"; then
+        echo "패키지 제거 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    # requirements.in에서 패키지 제거
+    for package in "$@"; do
+        # 패키지 이름 추출
+        package_name=$(echo "$package" | cut -d'=' -f1)
+        
+        # requirements.in에서 패키지 제거
+        if [ -f requirements.in ]; then
+            sed -i.bak "/^$package_name==/d" requirements.in
+            rm -f requirements.in.bak
+        fi
+    done
+    
+    # 연속된 개행을 하나로 줄이기
+    if [ -f requirements.in ]; then
+        sed -i.bak ':a;N;$!ba;s/\n\n\+/\n/g' requirements.in
+        rm -f requirements.in.bak
+    fi
+    
+    # requirements.txt 업데이트
+    echo "requirements.txt 업데이트 중..."
+    if ! pip-compile requirements.in; then
+        echo "requirements.txt 생성 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    if ! pip-sync requirements.txt; then
+        echo "패키지 동기화 중 오류가 발생했습니다."
+        return 1
+    fi
+    
+    echo "모든 패키지가 성공적으로 제거되었습니다."
+    return 0
 }
 
 # macOS 전용 체크
@@ -95,42 +223,53 @@ fi
 
 # 명령어 인자 확인
 if [ $# -eq 0 ]; then
-    echo "사용법: $0 [install|start|dev]"
+    echo "사용법: $0 [install|uninstall|start|dev]"
     exit 1
 fi
 
 case "$1" in
     "install")
-        # Python 버전 확인
-        PYTHON_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
-        echo "Detected Python version: $PYTHON_VERSION"
+        if [ -z "$2" ]; then
+            # 기존 설치 로직
+            PYTHON_VERSION=$(python3.12 --version 2>&1 | awk '{print $2}')
+            echo "Detected Python version: $PYTHON_VERSION"
 
-        # 가상환경이 없으면 생성
-        if [ ! -d "venv" ]; then
-            echo "Creating virtual environment..."
-            python3.12 -m venv venv
+            if [ ! -d "venv" ]; then
+                echo "Creating virtual environment..."
+                python3.12 -m venv venv
+            fi
+
+            activate_venv
+
+            echo "Upgrading pip..."
+            python3.12 -m pip install --upgrade pip
+
+            echo "Installing pip-tools..."
+            python3.12 -m pip install pip-tools
+
+            echo "Generating requirements.txt..."
+            pip-compile requirements.in
+
+            echo "Installing packages from requirements.txt..."
+            pip-sync requirements.txt
+
+            echo "Setup completed successfully!"
+        else
+            # 모든 패키지 한 번에 설치
+            shift  # 첫 번째 인자(install) 제거
+            install_packages "$@"
         fi
-
-        # 가상환경 활성화
-        activate_venv
-
-        # pip 업그레이드
-        echo "Upgrading pip..."
-        python3.12 -m pip install --upgrade pip
-
-        # pip-tools 설치
-        echo "Installing pip-tools..."
-        python3.12 -m pip install pip-tools
-
-        # requirements.txt 생성
-        echo "Generating requirements.txt..."
-        pip-compile requirements.in
-
-        # requirements.txt로 패키지 설치
-        echo "Installing packages from requirements.txt..."
-        pip-sync requirements.txt
-
-        echo "Setup completed successfully!"
+        ;;
+    "uninstall")
+        if [ -z "$2" ]; then
+            echo "제거할 패키지를 지정해주세요."
+            echo "사용법: $0 uninstall package1 [package2 ...]"
+            exit 1
+        else
+            # 모든 패키지 한 번에 제거
+            shift  # 첫 번째 인자(uninstall) 제거
+            uninstall_packages "$@"
+        fi
         ;;
     "start")
         activate_venv
@@ -143,7 +282,7 @@ case "$1" in
         start_server --dev
         ;;
     *)
-        echo "잘못된 명령어입니다. 사용법: $0 [install|start|dev|prod]"
+        echo "잘못된 명령어입니다. 사용법: $0 [install|uninstall|start|dev|prod]"
         exit 1
         ;;
 esac 
