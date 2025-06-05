@@ -11,7 +11,7 @@ class TextProcessor:
         self.video_height = video_height
         self.font_path = str(Path(ROOT_DIR) / "fonts" / "NanumGothic.ttf")
 
-    def create_text_clip(self, caption: str, duration: float, start_time: float) -> TextClip:
+    def create_text_clip(self, caption: str, start_time: float, end_time: float) -> TextClip:
         text_clip = TextClip(
             text=caption,
             font=self.font_path,
@@ -22,9 +22,10 @@ class TextProcessor:
             method="caption",
             size=(int(self.video_width * 0.9), None),
             margin=(0, 0, 0, 10),
-        ).with_duration(duration)
-
-        return text_clip.with_position(("center", int(self.video_height * 0.5))).with_start(start_time)
+        )
+        text_clip = text_clip.with_start(start_time).with_end(end_time)
+        text_clip = text_clip.with_position(("center", int(self.video_height * 0.8)))
+        return text_clip
 
     def calculate_caption_durations(self, captions: List[str], total_duration: float) -> List[float]:
         if not captions:

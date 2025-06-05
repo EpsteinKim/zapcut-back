@@ -1,6 +1,7 @@
 from functools import lru_cache
 from app.services.tts_service import TTSService
 from app.services.openai_service import OpenAIService
+from app.services.google_ai_service import GoogleAIService
 from app.utils.text_processor import TextProcessor
 from app.utils.audio_processor import AudioProcessor
 from app.utils.video_processor import VideoProcessor
@@ -26,3 +27,8 @@ def get_tts_service() -> TTSService:
 @lru_cache()
 def get_openai_service() -> OpenAIService:
     return OpenAIService()
+
+
+@lru_cache()
+def get_google_ai_service() -> GoogleAIService:
+    return GoogleAIService()

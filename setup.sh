@@ -3,7 +3,7 @@
 # OS 체크
 OS_TYPE=$(uname)
 echo "Detected OS: $OS_TYPE"
-
+export PYTHONDONTWRITEBYTECODE=1
 # Ubuntu 체크
 if [ -f /etc/os-release ]; then
     . /etc/os-release

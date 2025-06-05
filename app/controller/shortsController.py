@@ -1,17 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query, Response, Depends
+from fastapi import APIRouter, Query, Response, Depends
 from app.models.schemas import (
-    ShortsContentRequest,
     Response,
     ShortsSceneRequest,
-    Scene,
     CombineShortsSceneRequest,
     ShortsScriptRequest,
+    ShortsVideoRequest,
 )
 from app.services.web_scraper import AsyncWebScraper
 from fastapi import Depends
-from app.exceptions.http_exceptions import ServerException
 from app.core.dependencies import get_services, Services
-from pydantic import BaseModel
 
 
 router = APIRouter(prefix="/shorts")
@@ -23,7 +20,7 @@ async def get_shorts_scripts(
 ):
     async with AsyncWebScraper() as scraper:
         result = await scraper.scrape_single_page(request.url)
-    video_script = services.openai.generate_shorts_scripts(result["content"], f"{request.duration}s")
+    video_script = services.google_ai.generate_shorts_scripts(result["content"], f"{request.duration}s")
     return Response.with_data(video_script)
 
 
@@ -39,8 +36,13 @@ async def combine_shorts_scene(request: CombineShortsSceneRequest, services: Ser
     return Response.with_data(output_path)
 
 
+@router.post("/video")
+async def create_shorts_video(request: ShortsVideoRequest, services: Services = Depends(get_services)):
+    output_path = await services.video.create_video(request)
+    return Response.with_data(output_path)
+
+
 @router.get("/image")
-def get_shorts_image(prompt: str = Query(...), services: Services = Depends(get_services)):
-    translated_description = services.openai.translate_to_english(prompt)
-    image_url = services.openai.generate_shorts_image(translated_description)
-    return Response.with_data(image_url)
+async def get_shorts_image(prompt: str = Query(...), services: Services = Depends(get_services)):
+    (upload_url, _) = await services.google_ai.generate_shorts_image(prompt)
+    return Response.with_data(upload_url)

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, TypeVar, Generic, TypedDict, Optional, ClassVar
+from typing import List, TypeVar, Generic, ClassVar
 from fastapi import Query
 
 # 제네릭 사용 예시:
@@ -50,67 +50,21 @@ class Response(BaseModel, Generic[T]):
         return cls(message=message or cls._OK_MESSAGE, data=data)
 
 
-class PromptRequest(BaseModel):
-    prompt: str
-
-
-class UrlRequest(BaseModel):
-    url: str
-
-
-class ShortsContentRequest(BaseModel):
-    url: str
-    duration: int | None = 30
-
-
-class Scene(BaseModel):
-    time: str
-    caption: List[str]
-    description: str
-
-
-class ChatResponse(Response[str]):
-    pass
-
-
-class SceneRequest(BaseModel):
-    captions: List[str]
-    image_url: str | None = None
-    video_url: str | None = None
-
-
-class ShortsRequest(BaseModel):
-    scenes: List[SceneRequest]
-    background_music: str | None = None  # 배경 음악 URL (선택적)
-    music_volume: float | None = 0.5  # 배경 음악 볼륨 (0.0 ~ 1.0, 기본값 0.5)
-
-
 class CaptionInfo(BaseModel):
     text: str
     start_time: float
     end_time: float
 
 
-class ShortsSceneRequest(BaseModel):
+class Scene(BaseModel):
+    duration: float
+    captions: List[CaptionInfo]
+    description: str
+
+
+class SceneWithData(Scene):
     video_url: str | None = None
     image_url: str | None = None
-    captions: List[CaptionInfo]
-
-
-class CombineShortsSceneRequest(BaseModel):
-    scenes: List[str]  # video_urls (이미 만들어진 url들)
-    background_music_url: str | None = None
-
-
-class ShortsResponse(BaseModel):
-    status: str
-    output_path: str
-
-
-class ShortsContentResponse(Response[str]):
-    """쇼츠 콘텐츠 생성 응답"""
-
-    pass
 
 
 class ShortsScriptRequest(BaseModel):
@@ -122,3 +76,26 @@ class ShortsScriptRequest(BaseModel):
         cls, url: str = Query(..., description="스크랩할 URL"), duration: int = Query(..., description="영상 길이(초)")
     ) -> "ShortsScriptRequest":
         return cls(url=url, duration=duration)
+
+
+class SceneRequest(BaseModel):
+    captions: List[str]
+    image_url: str | None = None
+    video_url: str | None = None
+
+
+class ShortsVideoRequest(BaseModel):
+    scenes: List[SceneWithData]
+    background_music_url: str | None = None  # 배경 음악 URL (선택적)
+    music_volume: float | None = 0.5  # 배경 음악 볼륨 (0.0 ~ 1.0, 기본값 0.5)
+
+
+class ShortsSceneRequest(BaseModel):
+    video_url: str | None = None
+    image_url: str | None = None
+    captions: List[CaptionInfo]
+
+
+class CombineShortsSceneRequest(BaseModel):
+    scene_urls: List[str]  # video_urls (이미 만들어진 url들)
+    background_music_url: str | None = None

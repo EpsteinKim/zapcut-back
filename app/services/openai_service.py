@@ -5,6 +5,7 @@ from openai import OpenAI
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import UnprocessableEntityError
 from app.models.schemas import ShortsResponse
+from app.utils.base64_decoder import decode_base64_data
 import requests
 import os
 from pathlib import Path
@@ -31,7 +32,7 @@ class OpenAIService:
         )
         return response.output_text
 
-    async def translate_to_english(self, string: str) -> str:
+    def translate_to_english(self, string: str) -> str:
         if all(ord("가") <= ord(char) <= ord("힣") or char.isspace() or char in ".,!?()[]{}" for char in string):
             return string
 
@@ -108,15 +109,17 @@ class OpenAIService:
 
         return json.loads(response.output_text)
 
-    def generate_shorts_image(self, user_prompt: str, user_id: int = 1):
+    async def generate_shorts_image(self, user_prompt: str, user_id: int = 1):
         prompt = f"{user_prompt}"
+        print(prompt)
         response = self.client.images.generate(
             model="gpt-image-1", prompt=prompt, size="1024x1024", output_format="png"
         )
 
         dumped = response.model_dump()
         base64_image = dumped["data"][0]["b64_json"]
-        image_data = base64.b64decode(base64_image.split(",")[1] if "," in base64_image else base64_image)
+        base64_data = base64_image.split(",")[1] if "," in base64_image else base64_image
+        image_data = decode_base64_data(base64_data)
 
         image_file = BytesIO(image_data)
-        return self.io_processor.upload_file(user_id, image_file, "png")
+        return await self.io_processor.upload_file_s3(user_id, image_file, "png")

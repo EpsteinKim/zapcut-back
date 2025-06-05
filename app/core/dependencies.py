@@ -8,6 +8,7 @@ from app.services.openai_service import OpenAIService
 from app.services.test_video_service import TestVideoService
 from app.services.video_service import VideoService
 from functools import lru_cache
+from app.services.google_ai_service import GoogleAIService
 
 
 class Services:
@@ -16,6 +17,7 @@ class Services:
         self.openai = OpenAIService()
         self.test_video = TestVideoService()
         self.video = VideoService()
+        self.google_ai = GoogleAIService()
 
 
 @lru_cache()
