@@ -1,6 +1,8 @@
 'use client';
 
-import { Button, Card, CardBody, Chip, Typography } from '@material-tailwind/react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 export function Pricing() {
 	const pricing = [
@@ -35,60 +37,64 @@ export function Pricing() {
 	];
 
 	return (
-		<section className='py-20 px-4'>
-			<div className='container mx-auto max-w-4xl'>
-				<div className='text-center mb-16'>
-					<Typography variant='h2' className='text-3xl md:text-5xl font-bold text-white mb-4'>
+		<section className="py-20 px-4">
+			<div className="max-w-screen-lg mx-auto">
+				<div className="text-center mb-16">
+					<h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
 						가격은?
-					</Typography>
+					</h2>
 				</div>
 
-				<div className='grid grid-cols-2 md:grid-cols-2 gap-12'>
-					{ pricing.map((plan, index) => (
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl mx-auto">
+					{pricing.map((plan, index) => (
 						<Card
-							key={ index }
-							className={ `relative bg-white/10 backdrop-blur-md border border-white/20 ${ plan.popular ? 'ring-2 ring-purple-500 scale-105' : ''
-							}` }
+							key={index}
+							className={`relative bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 transition-colors ${plan.popular ? 'ring-2 ring-purple-500 scale-105' : ''}`}
 						>
-							{ plan.popular && (
-								<div className='absolute -top-4 left-1/2 transform -translate-x-1/2'>
-									<Chip value='인기' className='bg-gradient-to-r from-purple-500 to-pink-500 text-white' />
+							{plan.popular && (
+								<div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+									<Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white">
+										인기
+									</Badge>
 								</div>
-							) }
-							<CardBody className='p-8 text-center'>
-								<Typography variant='h4' className='text-white font-bold mb-2'>
-									{ plan.title }
-								</Typography>
-								<Typography className='text-white/80 mb-4'>
-									{ plan.description }
-								</Typography>
-								<div className='mb-6'>
-									<Typography variant='h2' className='text-white font-bold'>
-										{ plan.price }
-										<span className='text-lg text-white/80'>{ plan.period }</span>
-									</Typography>
+							)}
+							<CardContent className="p-8 text-center">
+								<h3 className="text-white font-bold mb-2 text-2xl">
+									{plan.title}
+								</h3>
+								<p className="text-white/80 mb-4">
+									{plan.description}
+								</p>
+								<div className="mb-6">
+									<span className="text-white font-bold text-4xl">
+										{plan.price}
+										<span className="text-lg text-white/80">
+											{plan.period}
+										</span>
+									</span>
 								</div>
 								<Button
-									fullWidth
-									className={ `mb-6 ${ plan.popular
-										? 'bg-gradient-to-r from-purple-500 to-pink-500'
-										: 'bg-white/20 text-white border border-white/30'
-									}` }
+									className={`w-full mb-6 ${plan.popular
+										? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:shadow-lg'
+										: 'bg-white/20 text-white border border-white/30 hover:bg-white/30'
+										}`}
+									variant={plan.popular ? "default" : "outline"}
 								>
 									시작하기
 								</Button>
-								<ul className='space-y-2'>
-									{ plan.features.map((feature, featureIndex) => (
-										<li key={ featureIndex } className='text-white/80 flex items-center'>
-											<Typography className={'mx-auto'}>
-												{ feature }
-											</Typography>
+								<ul className="space-y-2">
+									{plan.features.map((feature, featureIndex) => (
+										<li
+											key={featureIndex}
+											className="text-white/80 flex items-center justify-center"
+										>
+											{feature}
 										</li>
-									)) }
+									))}
 								</ul>
-							</CardBody>
+							</CardContent>
 						</Card>
-					)) }
+					))}
 				</div>
 			</div>
 		</section>

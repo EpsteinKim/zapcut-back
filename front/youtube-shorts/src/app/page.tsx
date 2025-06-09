@@ -9,17 +9,17 @@ import { FAQ } from '@/app/components/FAQ';
 import { CTA } from '@/app/components/CTA';
 import { Footer } from '@/app/components/Footer';
 
-export default function Home() {
-	return (
-		<div className='min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-blue-950'>
-			<Header />
-			<MainIntroduce />
-			<Features />
-			<Pricing />
-			<Testimonials />
-			<FAQ />
-			<CTA />
-			<Footer />
-		</div>
-	);
+export default function RootPage() {
+    return (
+        <div className="min-h-screen bg-main-gradient">
+            <Header />
+            <MainIntroduce />
+            <Features />
+            <Pricing />
+            <Testimonials />
+            <FAQ />
+            <CTA />
+            <Footer />
+        </div>
+    );
 }

@@ -1,21 +1,11 @@
-'use client';
+import '@/app/globals.css';
 
-import './globals.css';
-import { ThemeProvider } from '@material-tailwind/react';
-import React from 'react';
-
-export default function RootLayout({
-	children
-}: Readonly<{
-	children: React.ReactNode;
-}>) {
-	return (
-		<html>
-			<body>
-				<ThemeProvider>
-					{ children }
-				</ThemeProvider>
-			</body>
-		</html>
-	);
-}
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <html lang="ko">
+            <body>
+                {children}
+            </body>
+        </html>
+    );
+} 

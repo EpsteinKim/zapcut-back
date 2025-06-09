@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, CardBody, Typography } from '@material-tailwind/react';
+import { Card, CardContent } from "@/components/ui/card";
 
 export function Features() {
     const features = [
@@ -17,29 +17,32 @@ export function Features() {
     ];
 
     return (
-        <section className='py-20 px-4'>
-            <div className='container mx-auto'>
-                <div className='text-center mb-16'>
-                    <Typography variant='h2' className='text-3xl md:text-5xl font-bold text-white mb-4'>
+        <section className="py-20 px-4">
+            <div className="max-w-screen-lg mx-auto">
+                <div className="text-center mb-16">
+                    <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">
                         유튜브 쇼츠를 만드는 가장 빠른 방법
-                    </Typography>
-                    <Typography className='text-xl text-white/80 max-w-3xl mx-auto'>
+                    </h2>
+                    <p className="text-xl text-white/80 max-w-3xl mx-auto">
                         AI 스토리, 커뮤니티 스토리, 상품 소개, 대화 비디오를 자동으로 생성합니다.
-                    </Typography>
+                    </p>
                 </div>
 
-                <div className='grid grid-cols-2 md:grid-cols-2 gap-6 max-w-3xl mx-auto'>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
                     {features.map((feature, index) => (
-                        <Card key={index} className='bg-white/10 backdrop-blur-md border border-white/20'>
-                            <CardBody className='text-center p-6'>
-                                <div className='text-4xl mb-4'>{feature.icon}</div>
-                                <Typography variant='h5' className='text-white mb-3 font-semibold'>
+                        <Card
+                            key={index}
+                            className="bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/20 transition-colors"
+                        >
+                            <CardContent className="text-center p-6">
+                                <div className="text-4xl mb-4">{feature.icon}</div>
+                                <h3 className="text-white mb-3 font-semibold text-xl">
                                     {feature.title}
-                                </Typography>
-                                <Typography className='text-white/80'>
+                                </h3>
+                                <p className="text-white/80">
                                     {feature.description}
-                                </Typography>
-                            </CardBody>
+                                </p>
+                            </CardContent>
                         </Card>
                     ))}
                 </div>
