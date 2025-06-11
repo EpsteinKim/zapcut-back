@@ -4,7 +4,7 @@ import json
 from openai import OpenAI
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import UnprocessableEntityError
-from app.models.schemas import ShortsResponse
+from app.models.schemas import Response
 from app.utils.base64_decoder import decode_base64_data
 import requests
 import os
@@ -55,7 +55,7 @@ class OpenAIService:
         )
         return response.output_text
 
-    def generate_shorts_scripts(self, content: str, duration: str, style: str = "popular") -> ShortsResponse:
+    def generate_shorts_scripts(self, content: str, duration: str, style: str = "popular") -> dict:
         if len(content) < 100:
             raise UnprocessableEntityError("정보가 너무 적거나, 접근할 수 없는 페이지입니다.", {"content": content})
 

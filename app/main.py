@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
-from app.controller import shortsController, test
+from app.controller import shortsController
 from app.exceptions.handlers import exception_handler
 
 
@@ -32,7 +32,6 @@ app.add_exception_handler(RequestValidationError, exception_handler)
 
 # 라우터 등록
 app.include_router(shortsController.router, prefix="/api/v1", tags=["shortsController"])
-app.include_router(test.router, prefix="/api/v1", tags=["test"])
 
 
 @app.get("/")

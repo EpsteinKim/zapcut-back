@@ -12,7 +12,7 @@ from moviepy import (
 from moviepy.audio import fx as afx
 from typing import List, Optional, Tuple
 from app.models.schemas import SceneRequest, ShortsSceneRequest, CombineShortsSceneRequest, ShortsVideoRequest
-from app.core.service_locator import get_tts_service, get_google_ai_service
+from app.core.service_locator import get_google_ai_service
 from app.utils.video_processor import VideoProcessor
 from app.utils.audio_processor import AudioProcessor
 from app.utils.text_processor import TextProcessor

@@ -1,5 +1,4 @@
 from functools import lru_cache
-from app.services.tts_service import TTSService
 from app.services.openai_service import OpenAIService
 from app.services.google_ai_service import GoogleAIService
 from app.utils.text_processor import TextProcessor
@@ -17,11 +16,6 @@ class Processors:
     audio: AudioProcessor
     video: VideoProcessor
     IO: IOProcessor
-
-
-@lru_cache()
-def get_tts_service() -> TTSService:
-    return TTSService()
 
 
 @lru_cache()
