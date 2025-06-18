@@ -68,14 +68,33 @@ class SceneWithData(Scene):
 
 
 class ShortsScriptRequest(BaseModel):
-    url: str
+    url: str | None = None
+    description: str | None = None
+    title: str | None = None
     duration: int
 
     @classmethod
     def from_query(
-        cls, url: str = Query(..., description="스크랩할 URL"), duration: int = Query(..., description="영상 길이(초)")
+        cls,
+        url: str = Query(None, description="스크랩할 URL"),
+        description: str = Query(None, description="상품 설명"),
+        title: str = Query(None, description="제목"),
+        duration: int = Query(..., description="영상 길이(초)"),
     ) -> "ShortsScriptRequest":
-        return cls(url=url, duration=duration)
+        return cls(url=url, description=description, title=title, duration=duration)
+
+
+class ShortsVoiceRequest(BaseModel):
+    text: str
+    duration: float | None = None
+
+    @classmethod
+    def from_query(
+        cls,
+        text: str = Query(..., description="음성 텍스트"),
+        duration: float = Query(None, description="음성 길이(초)"),
+    ) -> "ShortsVoiceRequest":
+        return cls(text=text, duration=duration)
 
 
 class SceneRequest(BaseModel):

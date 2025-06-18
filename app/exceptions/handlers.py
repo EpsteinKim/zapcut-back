@@ -11,5 +11,5 @@ async def exception_handler(request: Request, exc: Exception):
     # ServerException의 경우 status_code가 이미 500으로 설정되어 있을 것입니다
     return JSONResponse(
         status_code=getattr(exc, "status_code", 500),
-        content={"response": {"message": str(exc), "data": getattr(exc, "data", None)}},
+        content={"message": str(exc), "data": getattr(exc, "data", None)},
     )

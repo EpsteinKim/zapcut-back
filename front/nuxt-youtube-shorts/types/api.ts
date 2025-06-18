@@ -1,55 +1,39 @@
-export interface Video {
-    id: string;
-    title: string;
-    description: string;
-    url: string;
-    thumbnailUrl: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
-export interface Comment {
-    id: string;
-    videoId: string;
-    content: string;
-    userId: string;
-    userName: string;
-    createdAt: string;
-    updatedAt: string;
-}
-
 export interface ApiResponse<T = unknown> {
-    success: boolean;
-    message?: string;
-    data?: T;
-}
-
-export interface PaginatedResponse<T> {
-    items: T[];
-    total: number;
-    page: number;
-    limit: number;
+	success?: boolean;
+	message?: string;
+	data?: T;
 }
 
 export interface ShortsScriptRequest {
-    url: string;
-    duration: number;  // 초 단위
-}
-
-export interface Caption {
-    text: string
-    start_time: number
-    end_time: number
+	url: string;
+	duration: number; // 초 단위
+	title?: string;
+	description?: string;
 }
 
 export interface Scene {
-    video_url?: string
-    image_url?: string
-    duration: number
-    captions: Caption[]
+	videoUrl?: string;
+	imageUrl?: string;
+	duration: number;
+	captions: CaptionInfo[];
+	voiceUrl?: string;
+	description: string;
+	thumbnailUrl?: string; // 여기에서만 씀
+}
+export interface CaptionInfo {
+	text: string;
+	startTime: number;
+	endTime: number;
 }
 
 export interface ShortsScript {
-    title: string;
-    scene: Scene[];
-} 
+	title: string;
+	scenes: Scene[];
+	backgroundMusicUrl?: string;
+}
+
+export interface ShortsVideoRequest {
+	backgroundMusicUrl?: string;
+	musicVolume?: number;
+	scenes: Scene[];
+}

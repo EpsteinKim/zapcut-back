@@ -24,7 +24,7 @@ class TextProcessor:
             margin=(0, 0, 0, 10),
         )
         text_clip = text_clip.with_start(start_time).with_end(end_time)
-        text_clip = text_clip.with_position(("center", int(self.video_height * 0.8)))
+        text_clip = text_clip.with_position(("center", int(self.video_height * 0.5)))
         return text_clip
 
     def calculate_caption_durations(self, captions: List[str], total_duration: float) -> List[float]:

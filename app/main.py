@@ -6,19 +6,19 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.controller import shortsController
 from app.exceptions.handlers import exception_handler
+from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI(title=get_settings().app_name)
 
-# CORS 설정
+# CORS 미들웨어 제거
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=["*", "http://localhost:3000"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

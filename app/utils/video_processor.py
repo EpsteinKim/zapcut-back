@@ -33,13 +33,7 @@ class VideoProcessor:
         return final_video
 
     def save_video(self, video: CompositeVideoClip, output_path: str):
-        video.write_videofile(
-            output_path,
-            codec="libx264",
-            audio_codec="aac",
-            threads=4,
-            fps=24,
-        )
+        video.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=4, fps=24, audio_fps=24000)
 
     def __del__(self):
         if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):

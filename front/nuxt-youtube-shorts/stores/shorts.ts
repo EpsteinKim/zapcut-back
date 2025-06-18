@@ -1,219 +1,154 @@
-import { defineStore } from 'pinia';
-import type { ShortsScript, ShortsScriptRequest } from '~/types/api';
-
-interface ShortsScriptResponse {
-    message: string;
-    data: {
-        title: string;
-        scene: ShortsScript['scene'];
-    }
-}
-
 export const useShortsStore = defineStore('shorts', () => {
-    const api = useApi();
+	// 비디오 상태
+	const videoUrl = ref<string>('');
+	const setVideoUrl = (url: string) => {
+		videoUrl.value = url;
+	};
+	const currentTime = ref(0);
 
-    // 로딩 및 에러 상태
-    const isLoading = ref(false);
-    const error = ref<string | null>(null);
+	const setCurrentTime = (time: number) => {
+		currentTime.value = time;
+	};
+	const duration = ref(0);
+	const setDuration = (time: number) => {
+		duration.value = time;
+	};
+	const isPlaying = ref(false);
+	const setIsPlaying = (bool: boolean) => {
+		isPlaying.value = bool;
+	};
+	const isMuted = ref(false);
+	const setIsMuted = (bool: boolean) => {
+		isMuted.value = bool;
+	};
+	const playbackSpeed = ref(1);
+	// 스크립트 상태
+	const script = ref<ShortsScript | null>(null);
+	const setScript = async (newScript: ShortsScript | null) => {
+		if (newScript && !videoUrl.value) {
+			if (!script.value || isAudioChanged(script.value, newScript)) {
+				const { composeScriptAudio } = useAudioComposer();
+				composedAudio.value = await composeScriptAudio(newScript);
+			}
+		}
 
-    // 비디오 상태
-    const videoUrl = ref<string>('');
-    const currentTime = ref(0);
-    const duration = ref(0);
-    const isPlaying = ref(false);
-    const isMuted = ref(true);
-    const playbackSpeed = ref(1);
+		script.value = JSON.parse(JSON.stringify(newScript));
+	};
+	const getScript = () => {
+		return script.value ? JSON.parse(JSON.stringify(script.value)) : null;
+	};
+	const setPlaybackSpeed = (speed: number) => {
+		playbackSpeed.value = speed;
+	};
 
-    // 스크립트 상태
-    const script = ref<ShortsScriptResponse['data'] | null>(null);
+	const sceneEditDialogVisible = ref(false);
+	const setSceneEditDialogVisible = (visible: boolean) => {
+		sceneEditDialogVisible.value = visible;
+	};
 
-    // 샘플 데이터
-    const sample = {
-        "message": "요청이 성공적으로 처리되었습니다.",
-        "data": {
-            "title": "고급스러움 한도 초과! 라뒤레 손수건 언박싱✨",
-            "scene": [
-                {
-                    "duration": 2,
-                    "text": "라뒤레(LADUREE) 손수건 택배 상자 클로즈업",
-                    "captions": [
-                        {
-                            "text": "어머, 이건 뭐야?!",
-                            "start_time": 0.5,
-                            "end_time": 1.5
-                        }
-                    ]
-                },
-                {
-                    "duration": 4,
-                    "text": "라뒤레 손수건 포장 뜯는 모습 (리본, 포장지 등)",
-                    "captions": [
-                        {
-                            "text": "고급스러움이 뚝뚝!",
-                            "start_time": 0.5,
-                            "end_time": 1.5
-                        },
-                        {
-                            "text": "선물 받은 기분🎁",
-                            "start_time": 2,
-                            "end_time": 3
-                        }
-                    ]
-                },
-                {
-                    "duration": 5,
-                    "text": "손수건 펼쳐서 보여주기 (색감, 디자인 강조). 은은한 광택이 도는 고급스러운 재질 표현",
-                    "captions": [
-                        {
-                            "text": "색감 미쳤다…💖",
-                            "start_time": 0.5,
-                            "end_time": 1.5
-                        },
-                        {
-                            "text": "라이트 그레이 & 핑크 조합!",
-                            "start_time": 2,
-                            "end_time": 3.5
-                        }
-                    ]
-                },
-                {
-                    "duration": 5,
-                    "text": "손수건 패턴 자세히 보여주기 (도트, 새). 자수로 고급스러움을 더함",
-                    "captions": [
-                        {
-                            "text": "귀여운 도트 & 새 패턴🕊️",
-                            "start_time": 0.5,
-                            "end_time": 2
-                        },
-                        {
-                            "text": "완전 내 스타일이야!",
-                            "start_time": 2.5,
-                            "end_time": 3.5
-                        }
-                    ]
-                },
-                {
-                    "duration": 4,
-                    "text": "손으로 손수건 재질 느껴보기. 부드러운 촉감 강조",
-                    "captions": [
-                        {
-                            "text": "촉감도 부드러워🥰",
-                            "start_time": 0.5,
-                            "end_time": 1.5
-                        },
-                        {
-                            "text": "역시 면 100%!",
-                            "start_time": 2,
-                            "end_time": 3
-                        }
-                    ]
-                },
-                {
-                    "duration": 5,
-                    "text": "손수건 접어서 가방에 넣는 모습. 휴대하기 좋은 사이즈임을 보여줌",
-                    "captions": [
-                        {
-                            "text": "가방에 쏙 넣어 다니기👜",
-                            "start_time": 0.5,
-                            "end_time": 2
-                        },
-                        {
-                            "text": "데일리템으로 딱!",
-                            "start_time": 2.5,
-                            "end_time": 3.5
-                        }
-                    ]
-                },
-                {
-                    "duration": 5,
-                    "text": "손수건 들고 포즈 취하기. 만족스러운 표정 🥰",
-                    "captions": [
-                        {
-                            "text": "특별한 날, 나를 위한 선물🎁",
-                            "start_time": 0.5,
-                            "end_time": 2
-                        },
-                        {
-                            "text": "라뒤레 손수건 추천💖",
-                            "start_time": 2.5,
-                            "end_time": 3.5
-                        }
-                    ]
-                }
-            ]
-        }
-    }
-    script.value = sample.data
+	const targetSceneIndex = ref(-1);
+	const setTargetSceneIndex = (index: number) => {
+		targetSceneIndex.value = index;
+	};
 
-    // 비디오 컨트롤 메서드
-    const setTime = (time: number) => {
-        currentTime.value = time;
-    };
+	const videoElement = ref<HTMLVideoElement | null>(null);
+	const setVideoElement = (element: HTMLVideoElement | null) => {
+		videoElement.value = element;
+	};
 
-    const setDuration = (time: number) => {
-        duration.value = time;
-    };
+	const thumbnailCache = ref<Record<string, string>>({});
 
-    const togglePlay = () => {
-        isPlaying.value = !isPlaying.value;
-    };
+	const currentScene = computed(() => {
+		if (!script.value) return null;
 
-    const toggleMute = () => {
-        isMuted.value = !isMuted.value;
-    };
+		let accumulatedTime = 0;
+		for (const scene of script.value.scenes) {
+			if (currentTime.value >= accumulatedTime && currentTime.value < accumulatedTime + scene.duration) {
+				return scene;
+			}
+			accumulatedTime += scene.duration;
+		}
+		return null;
+	});
 
-    const setPlaybackSpeed = (speed: number) => {
-        playbackSpeed.value = speed;
-    };
+	// 현재 시간에 해당하는 자막 찾기
+	const currentCaptions = computed(() => {
+		if (!currentScene.value) return [];
 
-    const seekRelative = (offset: number) => {
-        currentTime.value = Math.max(0, Math.min(currentTime.value + offset, duration.value));
-    };
+		const sceneStartTime =
+			script.value?.scenes.slice(0, script.value.scenes.indexOf(currentScene.value)).reduce((acc, scene) => acc + scene.duration, 0) || 0;
+		const sceneTime = currentTime.value - sceneStartTime;
 
-    // 스크립트 생성 메서드
-    async function generateScript(url: string, duration: number) {
-        isLoading.value = true;
-        error.value = null;
-        script.value = null;
-        videoUrl.value = url;
+		return currentScene.value.captions.filter((caption) => sceneTime >= caption.startTime && sceneTime <= caption.endTime);
+	});
 
-        try {
-            const response = await api.shorts.generateScript({ url, duration });
+	// 오디오 관련 상태
+	const composedAudio = ref<ComposedAudio | null>(null);
+	const composedVideoUrl = ref<string | null>(null);
 
-            if (response) {
-                script.value = response;
-            } else {
-                error.value = '스크립트 생성에 실패했습니다.';
-            }
-        } catch (e) {
-            error.value = e instanceof Error ? e.message : '예상치 못한 오류가 발생했습니다.';
-        } finally {
-            isLoading.value = false;
-        }
-    }
+	// 총 영상 길이 계산
+	const totalDuration = computed(() => {
+		return script.value?.scenes.reduce((acc, scene) => acc + scene.duration, 0) || 0;
+	});
 
-    // 총 영상 길이 계산
-    const totalDuration = computed(() => {
-        return script.value?.scene.reduce((acc, scene) => acc + scene.duration, 0) || 0;
-    });
+	// Reset 함수 추가
+	const reset = () => {
+		videoUrl.value = '';
+		currentTime.value = 0;
+		duration.value = 0;
+		isPlaying.value = false;
+		isMuted.value = false;
+		playbackSpeed.value = 1;
+		script.value = null;
+		videoElement.value = null;
+		sceneEditDialogVisible.value = false;
+		targetSceneIndex.value = -1;
 
-    return {
-        isLoading,
-        error,
-        script,
-        videoUrl,
-        currentTime,
-        duration,
-        isPlaying,
-        isMuted,
-        playbackSpeed,
-        totalDuration,
-        setTime,
-        setDuration,
-        togglePlay,
-        toggleMute,
-        setPlaybackSpeed,
-        seekRelative,
-        generateScript
-    };
-}); 
+		// 오디오 관련 초기화
+		if (composedAudio.value) {
+			composedAudio.value.stop();
+			composedAudio.value = null;
+		}
+	};
+
+	return {
+		script,
+		setScript,
+		getScript,
+		videoUrl,
+		setVideoUrl,
+		currentTime,
+		setCurrentTime,
+		duration,
+		setDuration,
+		isPlaying,
+		setIsPlaying,
+		isMuted,
+		setIsMuted,
+		playbackSpeed,
+		setPlaybackSpeed,
+		totalDuration,
+		videoElement,
+		setVideoElement,
+		sceneEditDialogVisible,
+		setSceneEditDialogVisible,
+		targetSceneIndex,
+		setTargetSceneIndex,
+		thumbnailCache,
+		currentScene,
+		currentCaptions,
+		composedAudio,
+		composedVideoUrl,
+		reset
+	};
+});
+
+const isAudioChanged = (oldScript: ShortsScript, newScript: ShortsScript) => {
+	const oldScenes = oldScript.scenes.map((scene) => ({
+		voiceUrl: scene.voiceUrl || null
+	}));
+	const newScenes = newScript.scenes.map((scene) => ({
+		voiceUrl: scene.voiceUrl || null
+	}));
+	return JSON.stringify(oldScenes) !== JSON.stringify(newScenes);
+};

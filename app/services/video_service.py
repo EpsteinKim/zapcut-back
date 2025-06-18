@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from PIL import Image
 import numpy as np
+import mimetypes
 
 
 @dataclass
@@ -47,6 +48,68 @@ class VideoService:
             text=TextProcessor(self.video_width, self.video_height),
             IO=IOProcessor(),
         )
+
+    def _is_gif_file(self, file_path: str) -> bool:
+        """GIF 파일인지 확인"""
+        # 확장자로 먼저 확인
+        if file_path.lower().endswith(".gif"):
+            return True
+
+        # MIME 타입으로 확인
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if mime_type == "image/gif":
+            return True
+
+        # 파일 헤더로 확인
+        try:
+            with open(file_path, "rb") as f:
+                header = f.read(6)
+                return header.startswith(b"GIF87a") or header.startswith(b"GIF89a")
+        except:
+            return False
+
+    def _process_gif_file(self, gif_path: str, duration: float) -> ImageClip:
+        """GIF 파일을 처리하여 애니메이션을 유지"""
+        try:
+            # PIL로 GIF 정보 확인
+            with Image.open(gif_path) as gif_image:
+                # GIF가 애니메이션인지 확인
+                is_animated = getattr(gif_image, "is_animated", False)
+
+                if is_animated:
+                    # 애니메이션 GIF인 경우 MoviePy의 VideoFileClip으로 처리
+                    # GIF를 비디오로 취급하여 애니메이션 유지
+                    try:
+                        gif_clip = VideoFileClip(gif_path)
+                        # GIF의 원본 길이가 씬 길이보다 짧으면 반복
+                        if gif_clip.duration < duration:
+                            # 필요한 반복 횟수 계산
+                            loops_needed = int(np.ceil(duration / gif_clip.duration))
+                            gif_clip = gif_clip.loop(loops_needed)
+                        return gif_clip.with_duration(duration)
+                    except Exception as e:
+                        print(f"GIF를 비디오로 처리하는 중 오류: {e}")
+                        # 실패 시 정적 이미지로 처리
+                        return self._process_static_gif(gif_image, duration)
+                else:
+                    # 정적 GIF인 경우
+                    return self._process_static_gif(gif_image, duration)
+
+        except Exception as e:
+            print(f"GIF 처리 중 오류: {e}")
+            # 오류 발생 시 기본 이미지 처리
+            pil_image = Image.open(gif_path)
+            if pil_image.mode != "RGB":
+                pil_image = pil_image.convert("RGB")
+            image_array = np.array(pil_image)
+            return ImageClip(image_array, duration=duration)
+
+    def _process_static_gif(self, gif_image: Image.Image, duration: float) -> ImageClip:
+        """정적 GIF 또는 첫 번째 프레임 처리"""
+        if gif_image.mode != "RGB":
+            gif_image = gif_image.convert("RGB")
+        image_array = np.array(gif_image)
+        return ImageClip(image_array, duration=duration)
 
     async def create_video(self, request: ShortsVideoRequest) -> str:
         google_ai_service = get_google_ai_service()
@@ -72,11 +135,17 @@ class VideoService:
                 target_clip = VideoFileClip(video_path)
             elif scene.image_url is not None:
                 image_path = await self.processors.IO.download_file(scene.image_url)
-                pil_image = Image.open(image_path)
-                if pil_image.mode != "RGB":
-                    pil_image = pil_image.convert("RGB")
-                image_array = np.array(pil_image)
-                target_clip = ImageClip(image_array, duration=scene.duration)
+
+                # GIF 파일인지 확인하고 적절히 처리
+                if self._is_gif_file(image_path):
+                    target_clip = self._process_gif_file(image_path, scene.duration)
+                else:
+                    # 일반 이미지 처리
+                    pil_image = Image.open(image_path)
+                    if pil_image.mode != "RGB":
+                        pil_image = pil_image.convert("RGB")
+                    image_array = np.array(pil_image)
+                    target_clip = ImageClip(image_array, duration=scene.duration)
             else:
                 (upload_url, image_buffer) = await google_ai_service.generate_shorts_image(scene.description)
                 pil_image = Image.open(image_buffer)
@@ -113,8 +182,14 @@ class VideoService:
                         end_time=current_time + caption.end_time,
                     )
                     text_clips.append(text_clip)
-                    tts_result = google_ai_service.genereate_text_to_speech(caption.text, 1.3)
-                    audio_clip = AudioArrayClip(tts_result["audio_array"], tts_result["fps"])
+
+                    tts_result = google_ai_service.genereate_text_to_speech(
+                        caption.text,
+                        duration=caption.end_time - caption.start_time,
+                        speed_multiplier=1.2,
+                    )
+
+                    audio_clip = AudioFileClip(tts_result["output_path"], fps=tts_result["fps"])
                     audio_clip = audio_clip.with_start(current_time + caption.start_time)
                     audio_clips.append(audio_clip)
 
@@ -122,8 +197,10 @@ class VideoService:
             current_time += scene.duration
 
         final_audio_clip = CompositeAudioClip(audio_clips)
+
         final_video_clip = CompositeVideoClip(video_clips + text_clips)
-        final_video_clip = final_video_clip.with_audio(final_audio_clip)
+        final_video_clip = final_video_clip.with_audio(final_audio_clip).with_duration(total_duration)
+        print(final_video_clip.duration)
         output_path = os.path.join(self.temp_dir, f"shorts_video_{uuid.uuid4()}.mp4")
         self.processors.video.save_video(final_video_clip, output_path)
 
@@ -132,7 +209,7 @@ class VideoService:
         video_buffer = BytesIO(video_bytes)
 
         try:
-            upload_url = await self.processors.IO.upload_file_s3(1, video_buffer, "mp4")
+            download_url = await self.processors.IO.upload_file_s3(1, video_buffer, "mp4")
 
             for clip in video_clips:
                 clip.close()
@@ -145,7 +222,7 @@ class VideoService:
             final_audio_clip.close()
             background.close()
 
-            return upload_url
+            return download_url
         except Exception as e:
             raise ServerException(f"파일 업로드 실패: {str(e)}")
 

@@ -61,7 +61,19 @@ class IOProcessor:
                 os.remove(temp_file_path)
             raise ServerException(f"File download failed: {str(e)}")
 
-    async def upload_file_s3(self, user_id: int, file_data: BytesIO, ext: str = "tmp") -> str:
+    async def upload_file_s3(
+        self, user_id: int, file_data: BytesIO = None, file_path: str = None, ext: str = "tmp"
+    ) -> str:
+        if file_data is None and file_path is None:
+            raise ServerException("file_data 또는 file_path 중 하나는 반드시 제공되어야 합니다.")
+
+        if file_path is not None:
+            try:
+                with open(file_path, "rb") as f:
+                    file_data = BytesIO(f.read())
+            except Exception as e:
+                raise ServerException(f"파일을 읽는 중 오류 발생: {str(e)}")
+
         presigned_url = (
             f"https://ttxbh6wm8f.execute-api.ap-northeast-2.amazonaws.com/prod/upload/{user_id}/no_file.{ext}"
         )
