@@ -13,25 +13,16 @@
 					<Form v-slot="$form" :resolver="resolver" :initial-values="initialValues" class="space-y-4" @submit="onFormSubmit">
 						<div class="flex flex-col gap-1">
 							<label class="block mb-2 font-medium">
-								URL
-								<span class="text-red-500 ml-1">(URL 혹은 상품 설명 필수)</span>
-							</label>
-							<InputText name="url" type="url" class="w-full" fluid />
-							<Message v-if="$form.url?.invalid" severity="error" size="small" variant="simple">{{ $form.url.error?.message }}</Message>
-						</div>
-
-						<div class="flex flex-col gap-1">
-							<label class="block mb-2 font-medium">
-								상품 설명
-								<span class="text-red-500 ml-1">(URL 혹은 상품 설명 필수)</span>
+								쇼츠 요청 사항
+								<span class="text-red-500 ml-1">(필수)</span>
 							</label>
 							<div class="relative">
 								<Textarea name="description" class="w-full" rows="4" auto-resize max-length="1000" fluid />
 								<div class="absolute bottom-2 right-2 text-sm text-gray-500">{{ $form.description?.value?.length || 0 }}/1000</div>
-								<Message v-if="$form.description?.invalid" severity="error" size="small" variant="simple">
-									{{ $form.description.error?.message }}
-								</Message>
 							</div>
+							<Message v-if="$form.description?.invalid" severity="error" size="small" variant="simple">
+								{{ $form.description.error?.message }}
+							</Message>
 						</div>
 
 						<div class="flex gap-5">
@@ -157,13 +148,11 @@
 	import { z } from 'zod';
 
 	interface FormValues {
-		url: string;
 		duration: number;
 		title: string;
 		description: string;
 	}
 	const initialValues = ref<FormValues>({
-		url: '',
 		duration: 30,
 		title: '',
 		description: ''
@@ -184,17 +173,11 @@
 
 	const resolver = ref(
 		zodResolver(
-			z
-				.object({
-					title: z.string().optional(),
-					description: z.string().max(1000, { message: '설명은 1000자를 초과할 수 없습니다' }).optional(),
-					duration: z.number().min(1, { message: '영상 길이를 선택해주세요' }),
-					url: z.string().optional()
-				})
-				.refine((data) => data.url || data.description, {
-					message: 'URL 또는 상품 설명 중 하나는 입력해야 합니다',
-					path: ['url']
-				})
+			z.object({
+				title: z.string().optional(),
+				description: z.string().min(5, { message: '최소 5글자는 입력해야 합니다.' }).max(1000, { message: '설명은 1000자를 초과할 수 없습니다' }),
+				duration: z.number().min(1, { message: '영상 길이를 선택해주세요' })
+			})
 		)
 	);
 

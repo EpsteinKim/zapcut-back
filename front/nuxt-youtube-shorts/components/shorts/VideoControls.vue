@@ -13,9 +13,6 @@
 	const shortsStore = useShortsStore();
 	let timer: ReturnType<typeof setInterval> | null = null;
 
-	const hasNoVideo = computed(() => !shortsStore.videoUrl && !shortsStore.composedVideoUrl);
-
-	// 비디오가 없을 때 타이머로 시간 업데이트
 	const startTimer = () => {
 		if (timer) return;
 		timer = setInterval(() => {
@@ -33,27 +30,15 @@
 
 	// seek 기능 구현
 	const seekRelative = (offset: number) => {
-		const toTime = shortsStore.currentTime + offset;
-		const clampedTime = Math.max(0, Math.min(toTime, shortsStore.totalDuration));
-
-		if ((shortsStore.videoUrl || shortsStore.composedVideoUrl) && shortsStore.videoElement) {
-			shortsStore.videoElement.currentTime = clampedTime;
-		}
-
-		shortsStore.setCurrentTime(clampedTime);
-
 		if (timer) {
 			clearInterval(timer);
 			timer = null;
 		}
+		const toTime = shortsStore.currentTime + offset;
+		const clampedTime = Math.max(0, Math.min(toTime, shortsStore.totalDuration));
 
-		if (hasNoVideo.value) {
-			startTimer();
-		}
-
-		if (!shortsStore.videoUrl) {
-			shortsStore.composedAudio?.play(clampedTime, shortsStore.playbackSpeed);
-		}
+		shortsStore.seekVideo(clampedTime);
+		startTimer();
 	};
 
 	const togglePlay = () => {
@@ -69,10 +54,11 @@
 			shortsStore.composedAudio?.stop();
 			shortsStore.setIsPlaying(false);
 		} else {
-			if (hasNoVideo.value) {
-				startTimer();
-			} else {
-				shortsStore.videoElement?.play();
+			startTimer();
+
+			if (shortsStore.videoElement) {
+				shortsStore.videoElement.currentTime = shortsStore.currentTime;
+				shortsStore.videoElement.play();
 			}
 
 			if (!shortsStore.videoUrl) {

@@ -69,43 +69,31 @@ class VideoService:
             return False
 
     def _process_gif_file(self, gif_path: str, duration: float) -> ImageClip:
-        """GIF 파일을 처리하여 애니메이션을 유지"""
         try:
-            # PIL로 GIF 정보 확인
             with Image.open(gif_path) as gif_image:
-                # GIF가 애니메이션인지 확인
                 is_animated = getattr(gif_image, "is_animated", False)
 
                 if is_animated:
-                    # 애니메이션 GIF인 경우 MoviePy의 VideoFileClip으로 처리
-                    # GIF를 비디오로 취급하여 애니메이션 유지
                     try:
                         gif_clip = VideoFileClip(gif_path)
-                        # GIF의 원본 길이가 씬 길이보다 짧으면 반복
                         if gif_clip.duration < duration:
-                            # 필요한 반복 횟수 계산
                             loops_needed = int(np.ceil(duration / gif_clip.duration))
                             gif_clip = gif_clip.loop(loops_needed)
                         return gif_clip.with_duration(duration)
                     except Exception as e:
-                        print(f"GIF를 비디오로 처리하는 중 오류: {e}")
-                        # 실패 시 정적 이미지로 처리
                         return self._process_static_gif(gif_image, duration)
                 else:
-                    # 정적 GIF인 경우
                     return self._process_static_gif(gif_image, duration)
-
         except Exception as e:
-            print(f"GIF 처리 중 오류: {e}")
-            # 오류 발생 시 기본 이미지 처리
-            pil_image = Image.open(gif_path)
-            if pil_image.mode != "RGB":
-                pil_image = pil_image.convert("RGB")
-            image_array = np.array(pil_image)
-            return ImageClip(image_array, duration=duration)
+            return self._process_static_gif(None, gif_path, duration)
 
-    def _process_static_gif(self, gif_image: Image.Image, duration: float) -> ImageClip:
+    def _process_static_gif(
+        self, gif_image: Image.Image | None, gif_path: str | None, duration: float = 1
+    ) -> ImageClip:
         """정적 GIF 또는 첫 번째 프레임 처리"""
+        if gif_image is None:
+            gif_image = Image.open(gif_path)
+
         if gif_image.mode != "RGB":
             gif_image = gif_image.convert("RGB")
         image_array = np.array(gif_image)

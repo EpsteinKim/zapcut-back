@@ -58,6 +58,19 @@ export const useShortsStore = defineStore('shorts', () => {
 
 	const thumbnailCache = ref<Record<string, string>>({});
 
+	const seekVideo = (time: number) => {
+		currentTime.value = time;
+		if (videoElement.value) {
+			videoElement.value.currentTime = time;
+		}
+
+		if (!videoUrl.value) {
+			if (isPlaying.value) {
+				composedAudio.value?.play(time, playbackSpeed.value);
+			}
+		}
+	};
+
 	const currentScene = computed(() => {
 		if (!script.value) return null;
 
@@ -109,6 +122,10 @@ export const useShortsStore = defineStore('shorts', () => {
 			composedAudio.value.stop();
 			composedAudio.value = null;
 		}
+		if (composedVideoUrl.value) {
+			URL.revokeObjectURL(composedVideoUrl.value);
+			composedVideoUrl.value = null;
+		}
 	};
 
 	return {
@@ -135,6 +152,7 @@ export const useShortsStore = defineStore('shorts', () => {
 		targetSceneIndex,
 		setTargetSceneIndex,
 		thumbnailCache,
+		seekVideo,
 		currentScene,
 		currentCaptions,
 		composedAudio,

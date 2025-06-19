@@ -13,6 +13,8 @@
     "lint:fix": "eslint . --ext .ts,.tsx,.vue,.js,.jsx --fix"
   },
   "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "@nuxt/eslint": "^1.4.1",
     "@nuxt/fonts": "^0.11.4",
     "@nuxt/icon": "^1.13.0",

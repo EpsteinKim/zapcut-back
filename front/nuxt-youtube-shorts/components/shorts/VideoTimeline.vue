@@ -137,6 +137,8 @@
 <script setup lang="ts">
 	const shortsStore = useShortsStore();
 	const timelineRef = ref<HTMLElement | null>(null);
+	const userInteracted = ref(false);
+	const userInteractedTimeout = ref<NodeJS.Timeout | null>(null);
 
 	// 특정 씬의 시작 시간 계산
 	const getSceneStartTime = (sceneIndex: number) => {
@@ -157,6 +159,13 @@
 	// 타임라인 클릭 이벤트 처리
 	const handleTimelineClick = (e: MouseEvent) => {
 		if (!timelineRef.value) return;
+		userInteracted.value = true;
+		if (userInteractedTimeout.value) {
+			clearTimeout(userInteractedTimeout.value);
+		}
+		userInteractedTimeout.value = setTimeout(() => {
+			userInteracted.value = false;
+		}, 2000);
 
 		const rect = timelineRef.value.getBoundingClientRect();
 		const scrollLeft = timelineRef.value.scrollLeft;
@@ -164,11 +173,7 @@
 
 		const newTime = clickX / 200; // 200px당 1초
 		if (newTime >= 0 && newTime <= shortsStore.totalDuration) {
-			if (shortsStore.videoElement) {
-				shortsStore.videoElement.currentTime = newTime;
-			}
-
-			shortsStore.setCurrentTime(newTime);
+			shortsStore.seekVideo(newTime);
 		}
 	};
 
@@ -176,7 +181,7 @@
 	watch(
 		() => shortsStore.currentTime,
 		(newTime) => {
-			if (!timelineRef.value) return;
+			if (!timelineRef.value || userInteracted.value) return;
 
 			const timelineWidth = timelineRef.value.clientWidth;
 			const currentPosition = newTime * 200 + 100; // 픽셀 단위 위치 (라벨 영역 고려)

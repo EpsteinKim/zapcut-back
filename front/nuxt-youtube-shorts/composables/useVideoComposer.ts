@@ -1,192 +1,144 @@
+import { parseGIF, decompressFrames, type ParsedFrame } from 'gifuct-js';
+
 export const useVideoComposer = () => {
 	const blockLoadingStore = useBlockLoadingStore();
 	const CANVAS_WIDTH = 1080;
 	const CANVAS_HEIGHT = 1920;
 	const FPS = 30;
 
-	// 캔버스 생성 및 초기화 로직 분리
-	const createCanvas = () => {
-		const canvas = document.createElement('canvas');
-		canvas.width = CANVAS_WIDTH;
-		canvas.height = CANVAS_HEIGHT;
-		const ctx = canvas.getContext('2d');
+	const calculateImageTransform = (imageWidth: number, imageHeight: number) => {
+		const widthRatio = CANVAS_WIDTH / imageWidth;
+		const heightRatio = CANVAS_HEIGHT / imageHeight;
+		const scaleRatio = Math.min(widthRatio, heightRatio);
+		const newWidth = Math.floor(imageWidth * scaleRatio);
+		const newHeight = Math.floor(imageHeight * scaleRatio);
+		const xCenter = Math.floor((CANVAS_WIDTH - newWidth) / 2);
+		const yCenter = Math.floor((CANVAS_HEIGHT - newHeight) / 2);
 
-		if (!ctx) {
-			throw new Error('Canvas context could not be created');
-		}
+		return { newWidth, newHeight, xCenter, yCenter };
+	};
 
-		// 기본 검은 배경 설정
+	const isGifFile = (url: string): boolean => {
+		const urlPath = url.split('?')[0];
+		return urlPath.toLowerCase().endsWith('.gif');
+	};
+
+	const drawErrorScreen = (ctx: CanvasRenderingContext2D) => {
 		ctx.fillStyle = 'black';
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-		return { canvas, ctx };
+		ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+		ctx.fillStyle = 'white';
+		ctx.font = '30px Arial';
+		ctx.fillText('미디어 로딩 실패', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2);
 	};
 
-	// 미디어 에러 핸들링 로직
-	const handleMediaError = (ctx: CanvasRenderingContext2D, sceneDuration: number) => {
-		return new Promise<void>((resolve) => {
-			// 검은 화면 및 에러 텍스트
-			ctx.fillStyle = 'black';
-			ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-			ctx.fillStyle = 'white';
-			ctx.font = '30px Arial';
-			ctx.fillText('미디어 로딩 실패', CANVAS_WIDTH / 2 - 100, CANVAS_HEIGHT / 2);
-
-			// 씬 지속 시간
-			setTimeout(resolve, sceneDuration * 1000);
-		});
+	const drawBlackScreen = (ctx: CanvasRenderingContext2D) => {
+		ctx.fillStyle = 'black';
+		ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 	};
 
-	// 비디오 씬 처리 로직
-	const processVideoScene = (videoElement: HTMLVideoElement, ctx: CanvasRenderingContext2D, scene: Scene) => {
-		return new Promise<void>((resolveScene) => {
-			// CORS 설정을 먼저 설정
-			videoElement.crossOrigin = 'anonymous';
-			videoElement.preload = 'metadata';
-			videoElement.src = scene.videoUrl!;
+	const drawVideoFrame = (videoElement: HTMLVideoElement, ctx: CanvasRenderingContext2D) => {
+		if (videoElement.readyState >= 2) {
+			const { newWidth, newHeight, xCenter, yCenter } = calculateImageTransform(videoElement.videoWidth, videoElement.videoHeight);
+			ctx.drawImage(videoElement, xCenter, yCenter, newWidth, newHeight);
+		}
+	};
 
-			const handleVideoPlay = async () => {
-				try {
-					await videoElement.play();
+	const processVideoScene = async (ctx: CanvasRenderingContext2D, scene: Scene, videoCache: Map<string, HTMLVideoElement>) => {
+		try {
+			const videoElement = videoCache.get(scene.videoUrl!);
+			if (!videoElement) {
+				throw new Error('비디오 요소를 찾을 수 없습니다');
+			}
 
-					// 비디오 크기 조정 및 중앙 정렬 로직
-					const videoWidth = videoElement.videoWidth;
-					const videoHeight = videoElement.videoHeight;
-					const widthRatio = CANVAS_WIDTH / videoWidth;
-					const heightRatio = CANVAS_HEIGHT / videoHeight;
+			const restartVideo = () => {
+				videoElement.currentTime = 0;
+				videoElement.play();
+			};
+			videoElement.addEventListener('ended', restartVideo);
 
-					const scaleRatio = Math.min(widthRatio, heightRatio);
-					const newWidth = Math.floor(videoWidth * scaleRatio);
-					const newHeight = Math.floor(videoHeight * scaleRatio);
+			videoElement.play();
 
-					const xCenter = Math.floor((CANVAS_WIDTH - newWidth) / 2);
-					const yCenter = Math.floor((CANVAS_HEIGHT - newHeight) / 2);
+			const drawInterval = setInterval(() => drawVideoFrame(videoElement, ctx), 1000 / FPS);
+			await delay(scene.duration * 1000);
+			clearInterval(drawInterval);
+			videoElement.removeEventListener('ended', restartVideo);
+			videoElement.pause();
+		} catch (error) {
+			console.error('비디오 처리 에러:', error);
+			drawErrorScreen(ctx);
+			await delay(scene.duration * 1000);
+		}
+	};
 
-					// 비디오를 캔버스에 그리기
-					const drawVideo = () => {
-						if (videoElement.readyState >= 2) {
-							// 비디오가 재생 가능한 상태인지 확인
-							ctx.fillStyle = 'black';
-							ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-							ctx.drawImage(videoElement, xCenter, yCenter, newWidth, newHeight);
-						}
-					};
+	const processGifScene = async (ctx: CanvasRenderingContext2D, scene: Scene, gifCache: Map<string, ParsedFrame[]>) => {
+		try {
+			const frames = gifCache.get(scene.imageUrl!);
+			if (!frames) {
+				throw new Error('GIF 프레임을 찾을 수 없습니다');
+			}
 
-					// 씬 지속 시간 동안 비디오 그리기
-					const drawInterval = setInterval(drawVideo, 1000 / FPS);
+			const width = frames[0].dims.width;
+			const height = frames[0].dims.height;
 
-					// 씬 지속 시간 후 정지
-					setTimeout(() => {
-						clearInterval(drawInterval);
-						videoElement.pause();
-						resolveScene();
-					}, scene.duration * 1000);
-				} catch (playError) {
-					console.error('비디오 재생 에러:', playError);
-					await handleMediaError(ctx, scene.duration);
-					resolveScene();
+			const tempCanvas = document.createElement('canvas');
+			tempCanvas.width = width;
+			tempCanvas.height = height;
+			const tempCtx = tempCanvas.getContext('2d');
+			assert(tempCtx);
+
+			const sceneEndTime = scene.duration * 1000;
+
+			let accumulatedTime = 0;
+			let i = 0;
+			while (accumulatedTime < sceneEndTime) {
+				tempCtx.clearRect(0, 0, width, height);
+				const imageData = tempCtx.createImageData(width, height);
+				imageData.data.set(frames[i].patch);
+				tempCtx.putImageData(imageData, 0, 0);
+				const transform = calculateImageTransform(width, height);
+				ctx.drawImage(tempCanvas, transform.xCenter, transform.yCenter, transform.newWidth, transform.newHeight);
+				const delayTime = Math.min(frames[i].delay || 20, sceneEndTime - accumulatedTime);
+				await delay(delayTime);
+				accumulatedTime += delayTime;
+				i++;
+				if (i >= frames.length) {
+					i = 0;
 				}
-			};
-
-			videoElement.onloadedmetadata = () => {
-				handleVideoPlay().catch(async (error) => {
-					console.error('비디오 재생 준비 에러:', error);
-					await handleMediaError(ctx, scene.duration);
-					resolveScene();
-				});
-			};
-
-			// 메타데이터 로딩 실패 시
-			videoElement.onerror = async () => {
-				console.error('비디오 로딩 에러:', videoElement.error);
-
-				// CORS 에러일 경우 대안적인 방법 시도
-				if (videoElement.error?.code === 4) {
-					console.log('CORS 에러 감지, 대안적인 방법으로 재시도...');
-					try {
-						// fetch로 blob을 가져와서 Object URL 생성
-						const response = await fetch(scene.videoUrl!, {
-							mode: 'no-cors'
-						});
-						const blob = await response.blob();
-						const objectUrl = URL.createObjectURL(blob);
-
-						videoElement.src = objectUrl;
-						return; // 재시도하므로 resolveScene 호출하지 않음
-					} catch (fetchError) {
-						console.error('Fetch 재시도도 실패:', fetchError);
-					}
-				}
-
-				await handleMediaError(ctx, scene.duration);
-				resolveScene();
-			};
-		});
+			}
+		} catch (error) {
+			console.error('GIF 처리 에러:', error);
+			drawErrorScreen(ctx);
+			await delay(scene.duration * 1000);
+		}
 	};
 
-	// 이미지 씬 처리 로직
-	const processImageScene = (ctx: CanvasRenderingContext2D, scene: Scene) => {
-		return new Promise<void>((resolveScene) => {
-			const img = new Image();
-			img.crossOrigin = 'anonymous'; // CORS 설정 추가
-			img.src = scene.imageUrl!;
+	const processImageScene = async (ctx: CanvasRenderingContext2D, scene: Scene, imageCache: Map<string, HTMLImageElement>) => {
+		try {
+			const img = imageCache.get(scene.imageUrl!);
+			if (!img) {
+				throw new Error('이미지를 찾을 수 없습니다');
+			}
 
-			img.onload = () => {
-				// 이미지 크기 조정 및 중앙 정렬 로직
-				const imageWidth = img.width;
-				const imageHeight = img.height;
-				const widthRatio = CANVAS_WIDTH / imageWidth;
-				const heightRatio = CANVAS_HEIGHT / imageHeight;
-
-				const scaleRatio = Math.min(widthRatio, heightRatio);
-				const newWidth = Math.floor(imageWidth * scaleRatio);
-				const newHeight = Math.floor(imageHeight * scaleRatio);
-
-				const xCenter = Math.floor((CANVAS_WIDTH - newWidth) / 2);
-				const yCenter = Math.floor((CANVAS_HEIGHT - newHeight) / 2);
-
-				// 검은 배경 채우기
-				ctx.fillStyle = 'black';
-				ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-				// 이미지를 중앙에 그리기
+			const drawImage = () => {
+				const { newWidth, newHeight, xCenter, yCenter } = calculateImageTransform(img.width, img.height);
 				ctx.drawImage(img, xCenter, yCenter, newWidth, newHeight);
-
-				// 이미지 지속 시간
-				setTimeout(resolveScene, scene.duration * 1000);
+				requestAnimationFrame(drawImage);
 			};
 
-			// 이미지 로딩 실패 시
-			img.onerror = async () => {
-				console.error('이미지 로딩 에러');
-				await handleMediaError(ctx, scene.duration);
-				resolveScene();
-			};
-		});
+			const animationID = requestAnimationFrame(drawImage);
+			await delay(scene.duration * 1000);
+			cancelAnimationFrame(animationID);
+		} catch (error) {
+			console.error('이미지 처리 에러:', error);
+			drawErrorScreen(ctx);
+			await delay(scene.duration * 1000);
+		}
 	};
 
-	// 검은 화면 씬 처리 로직
-	const processBlackScene = (ctx: CanvasRenderingContext2D, scene: Scene) => {
-		return new Promise<void>((resolveScene) => {
-			ctx.fillStyle = 'black';
-			ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-			// 씬 지속 시간
-			setTimeout(resolveScene, scene.duration * 1000);
-		});
-	};
-
-	const getComposedVideoBlob = async (script: ShortsScript) => {
-		blockLoadingStore.setBlocked(true, '비디오 컴포지션 중...');
-		const { canvas, ctx } = createCanvas();
-		const videoElement = document.createElement('video');
-		videoElement.muted = true;
-		videoElement.playsInline = true; // iOS 지원을 위해 추가
-
-		// 미디어 레코더 설정
+	const recordCanvas = async (canvas: HTMLCanvasElement, processScenes: () => Promise<void>): Promise<Blob> => {
 		const stream = canvas.captureStream(FPS);
 		const mediaRecorder = new MediaRecorder(stream, {
-			mimeType: 'video/webm;codecs=vp8' // 브라우저 호환성을 위해 WebM 형식 사용
+			mimeType: 'video/webm;codecs=vp8'
 		});
 
 		const chunks: Blob[] = [];
@@ -194,47 +146,108 @@ export const useVideoComposer = () => {
 			if (e.data.size > 0) chunks.push(e.data);
 		};
 
-		const blob = await new Promise<Blob>((resolve, reject) => {
+		return new Promise((resolve, reject) => {
 			mediaRecorder.onstop = () => {
-				const blob = new Blob(chunks, { type: 'video/webm' });
-				resolve(blob);
+				resolve(new Blob(chunks, { type: 'video/webm' }));
 			};
 
 			mediaRecorder.start();
 
-			const processScenes = async () => {
-				try {
-					for (const scene of script.scenes) {
-						if (scene.videoUrl) {
-							await processVideoScene(videoElement, ctx, scene);
-						} else if (scene.imageUrl) {
-							await processImageScene(ctx, scene);
-						} else {
-							await processBlackScene(ctx, scene);
-						}
-					}
-					// 전체 duration과 현재까지 처리된 시간의 차이를 계산
-					const totalProcessedTime = script.scenes.reduce((acc, scene) => acc + scene.duration, 0);
-					const totalDuration = script.scenes.reduce((acc, scene) => acc + scene.duration, 0);
-					const remainingTime = totalDuration - totalProcessedTime;
-
-					// 남은 시간이 있다면 검은 화면으로 채우기
-					if (remainingTime > 0) {
-						await processBlackScene(ctx, { duration: remainingTime } as Scene);
-					}
-					mediaRecorder.stop();
-				} catch (error) {
-					console.error('비디오 컴포지션 중 전체 에러:', error);
+			processScenes()
+				.then(() => mediaRecorder.stop())
+				.catch((error) => {
 					mediaRecorder.stop();
 					reject(error);
-				}
-			};
-
-			processScenes().catch(reject);
+				});
 		});
-		blockLoadingStore.setBlocked(false);
-		return blob;
 	};
 
-	return { getComposedVideoBlob };
+	const getComposedVideoBlob = async (script: ShortsScript) => {
+		blockLoadingStore.setBlocked(true, '비디오 컴포지션 중...');
+
+		// GIF 파일들을 미리 로드하여 캐시
+		const gifCache = new Map<string, ParsedFrame[]>();
+		const videoCache = new Map<string, HTMLVideoElement>();
+		const imageCache = new Map<string, HTMLImageElement>();
+
+		for (const scene of script.scenes) {
+			if (scene.videoUrl) {
+				await new Promise((resolve, reject) => {
+					const video = document.createElement('video');
+					video.crossOrigin = 'anonymous';
+					video.src = scene.videoUrl!;
+					video.onloadedmetadata = () => {
+						videoCache.set(scene.videoUrl!, video);
+						resolve(video);
+					};
+					video.onerror = () => {
+						console.error('비디오 로딩 실패:', scene.videoUrl);
+						reject(new Error('비디오 로딩 실패'));
+					};
+				});
+			} else if (scene.imageUrl) {
+				if (isGifFile(scene.imageUrl)) {
+					try {
+						const response = await fetch(scene.imageUrl);
+						const gifData = await response.arrayBuffer();
+						const gif = parseGIF(gifData);
+						const frames = decompressFrames(gif, true);
+						gifCache.set(scene.imageUrl, frames);
+					} catch (error) {
+						console.error('GIF 로딩 실패:', scene.imageUrl, error);
+					}
+				} else {
+					await new Promise((resolve, reject) => {
+						const img = new Image();
+						img.crossOrigin = 'anonymous';
+						img.src = scene.imageUrl!;
+						img.onload = () => {
+							imageCache.set(scene.imageUrl!, img);
+							resolve(img);
+						};
+						img.onerror = () => {
+							console.error('이미지 로딩 실패:', scene.imageUrl);
+							reject(new Error('이미지 로딩 실패'));
+						};
+					});
+				}
+			}
+		}
+
+		try {
+			const canvas = document.createElement('canvas');
+			canvas.width = CANVAS_WIDTH;
+			canvas.height = CANVAS_HEIGHT;
+			const ctx = canvas.getContext('2d');
+			assert(ctx);
+
+			const processAllScenes = async () => {
+				const startTime = performance.now();
+				for (const scene of script.scenes) {
+					if (scene.videoUrl) {
+						await processVideoScene(ctx, scene, videoCache);
+					} else if (scene.imageUrl) {
+						if (isGifFile(scene.imageUrl)) {
+							await processGifScene(ctx, scene, gifCache);
+						} else {
+							await processImageScene(ctx, scene, imageCache);
+						}
+					} else {
+						drawBlackScreen(ctx);
+						await delay(scene.duration * 1000);
+					}
+					drawBlackScreen(ctx);
+				}
+				const endTime = performance.now();
+				console.log(`씬 처리 시간: ${endTime - startTime}ms`);
+			};
+
+			const blob = await recordCanvas(canvas, processAllScenes);
+			return blob;
+		} finally {
+			blockLoadingStore.setBlocked(false);
+		}
+	};
+
+	return { getComposedVideoBlob, calculateImageTransform };
 };

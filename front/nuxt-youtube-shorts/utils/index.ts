@@ -103,3 +103,13 @@ export async function uploadToS3(file: File | Blob, userId: string, onProgress?:
 export function getFileExtension(filename: string): string {
 	return filename.split('.').pop()?.toLowerCase() || '';
 }
+
+export function assert(condition: unknown): asserts condition {
+	if (!condition) {
+		throw Error('Property Must Not be Null Or Undefined');
+	}
+}
+
+export function delay(ms: number) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}

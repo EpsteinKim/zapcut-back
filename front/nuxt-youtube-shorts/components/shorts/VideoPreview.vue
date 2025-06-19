@@ -44,7 +44,7 @@
 				:playbackRate="shortsStore.playbackSpeed"
 				:muted="shortsStore.isMuted"
 				preload="metadata"
-				@timeupdate="handleTimeUpdate"
+				playsinline
 				@loadedmetadata="handleVideoLoaded"
 				@ended="handleVideoEnded"
 			>
@@ -60,8 +60,8 @@
 					playsinline
 					:muted="shortsStore.isMuted"
 					preload="metadata"
-					@timeupdate="handleTimeUpdate"
 					@loadedmetadata="handleVideoLoaded"
+					@ended="handleVideoEnded"
 				>
 					<source :src="shortsStore.composedVideoUrl" type="video/webm" />
 					브라우저가 비디오를 지원하지 않습니다.
@@ -111,17 +111,13 @@
 	const isSpeedMenuOpen = ref(false);
 	const playbackSpeeds = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 
-	const handleTimeUpdate = () => {
-		if (!videoRef.value) return;
-		shortsStore.setCurrentTime(videoRef.value.currentTime);
-	};
-
 	const handleVideoLoaded = () => {
 		if (!videoRef.value) return;
 		shortsStore.setDuration(videoRef.value.duration);
 	};
 
 	const handleVideoEnded = () => {
+		console.log('끝났다');
 		console.log(videoRef.value?.currentTime);
 		shortsStore.setCurrentTime(0);
 		shortsStore.setIsPlaying(false);
@@ -139,7 +135,7 @@
 	watch(
 		() => shortsStore.playbackSpeed,
 		(newSpeed) => {
-			if (shortsStore.composedAudio) {
+			if (shortsStore.composedAudio && shortsStore.isPlaying) {
 				shortsStore.composedAudio.play(shortsStore.currentTime, newSpeed);
 			}
 		}
