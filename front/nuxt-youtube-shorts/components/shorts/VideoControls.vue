@@ -1,16 +1,31 @@
 <template>
-	<div class="flex flex-col items-center space-y-4">
-		<div class="flex justify-center space-x-4">
-			<Button icon="pi pi-backward" rounded text class="hover:bg-primary/10" @click="seekRelative(-5)" />
-			<Button :icon="shortsStore.isPlaying ? 'pi pi-pause' : 'pi pi-play'" rounded severity="primary" size="large" @click="togglePlay" />
-			<Button icon="pi pi-forward" rounded text class="hover:bg-primary/10" @click="seekRelative(5)" />
+	<div class="flex flex-col items-center space-y-3 md:space-y-4">
+		<div class="flex justify-center space-x-3 md:space-x-4">
+			<Button icon="pi pi-backward" rounded text size="small" class="hover:bg-primary/10 w-10 h-10 md:w-12 md:h-12" @click="seekRelative(-5)" />
+			<Button
+				:icon="shortsStore.isPlaying ? 'pi pi-pause' : 'pi pi-play'"
+				rounded
+				severity="primary"
+				:size="isMobile ? 'normal' : 'large'"
+				class="w-12 h-12 md:w-14 md:h-14"
+				@click="togglePlay"
+			/>
+			<Button icon="pi pi-forward" rounded text size="small" class="hover:bg-primary/10 w-10 h-10 md:w-12 md:h-12" @click="seekRelative(5)" />
 		</div>
 	</div>
 </template>
 
 <script setup lang="ts">
 	const shortsStore = useShortsStore();
+	const isMobile = ref(false);
 	let timer: ReturnType<typeof setInterval> | null = null;
+
+	onMounted(() => {
+		isMobile.value = window.innerWidth < 768;
+		window.addEventListener('resize', () => {
+			isMobile.value = window.innerWidth < 768;
+		});
+	});
 
 	const startTimer = () => {
 		if (timer) return;

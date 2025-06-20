@@ -1,53 +1,53 @@
 <template>
-	<div class="p-6 max-w-screen-md mx-auto">
+	<div class="p-4 md:p-6 max-w-screen-md mx-auto">
 		<div class="mb-6">
-			<h2 class="text-2xl font-bold mb-4" @click="console.log(initialValues)">비디오 스크립트 생성</h2>
+			<h2 class="text-xl md:text-2xl font-bold mb-4" @click="console.log(initialValues)">비디오 스크립트 생성</h2>
 			<Card class="w-full">
 				<template #title>
 					<div class="flex items-center gap-2">
-						<i class="pi pi-file-edit text-xl"></i>
-						<span class="text-xl font-semibold">스크립트 생성</span>
+						<i class="pi pi-file-edit text-lg md:text-xl"></i>
+						<span class="text-lg md:text-xl font-semibold">스크립트 생성</span>
 					</div>
 				</template>
 				<template #content>
 					<Form v-slot="$form" :resolver="resolver" :initial-values="initialValues" class="space-y-4" @submit="onFormSubmit">
 						<div class="flex flex-col gap-1">
-							<label class="block mb-2 font-medium">
+							<label class="block mb-2 font-medium text-sm md:text-base">
 								쇼츠 요청 사항
 								<span class="text-red-500 ml-1">(필수)</span>
 							</label>
 							<div class="relative">
-								<Textarea name="description" class="w-full" rows="4" auto-resize max-length="1000" fluid />
-								<div class="absolute bottom-2 right-2 text-sm text-gray-500">{{ $form.description?.value?.length || 0 }}/1000</div>
+								<Textarea name="description" class="w-full text-sm md:text-base" rows="4" auto-resize max-length="1000" fluid />
+								<div class="absolute bottom-2 right-2 text-xs md:text-sm text-gray-500">{{ $form.description?.value?.length || 0 }}/1000</div>
 							</div>
 							<Message v-if="$form.description?.invalid" severity="error" size="small" variant="simple">
 								{{ $form.description.error?.message }}
 							</Message>
 						</div>
 
-						<div class="flex gap-5">
+						<div class="flex flex-col md:flex-row gap-3 md:gap-5">
 							<div class="flex flex-col gap-1 flex-1">
-								<label class="block mb-2 font-medium">제목</label>
-								<InputText name="title" class="w-full" type="text" fluid />
+								<label class="block mb-2 font-medium text-sm md:text-base">제목</label>
+								<InputText name="title" class="w-full text-sm md:text-base" type="text" fluid />
 								<Message v-if="$form.title?.invalid" severity="error" size="small" variant="simple">{{ $form.title.error?.message }}</Message>
 							</div>
 							<div class="flex flex-col gap-1 flex-1">
-								<label class="block mb-2 font-medium">영상 길이 (초)</label>
-								<Dropdown name="duration" :options="[30, 60]" class="w-full" fluid />
+								<label class="block mb-2 font-medium text-sm md:text-base">영상 길이 (초)</label>
+								<Dropdown name="duration" :options="[30, 60]" class="w-full text-sm md:text-base" fluid />
 								<Message v-if="$form.duration?.invalid" severity="error" size="small" variant="simple">
 									{{ $form.duration.error?.message }}
 								</Message>
 							</div>
 						</div>
 
-						<div class="flex gap-5">
+						<div class="flex flex-col gap-3 md:gap-5">
 							<div class="flex flex-col gap-1 flex-1">
-								<label class="block mb-2 font-medium">이미지 혹은 영상</label>
+								<label class="block mb-2 font-medium text-sm md:text-base">이미지 혹은 영상</label>
 								<div class="flex flex-wrap gap-2">
 									<div
 										v-for="(media, index) in mediaList"
 										:key="index"
-										class="relative w-[120px] h-[120px] rounded-lg overflow-hidden border border-gray-200"
+										class="relative w-[100px] h-[100px] md:w-[120px] md:h-[120px] rounded-lg overflow-hidden border border-gray-200"
 									>
 										<template v-if="media.type === 'video'">
 											<video :src="media.url" class="w-full h-full object-cover" />
@@ -56,7 +56,7 @@
 											<img :src="media.url" class="w-full h-full object-cover" alt="Media preview" />
 										</template>
 										<button
-											class="absolute top-1 right-1 w-6 h-6 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70"
+											class="absolute top-1 right-1 w-5 h-5 md:w-6 md:h-6 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 text-xs"
 											@click="removeMedia(index)"
 										>
 											<i class="pi pi-times"></i>
@@ -72,14 +72,14 @@
 										@upload-state-change="(uploadState: 'start' | 'end') => (state.isUploading = uploadState === 'start')"
 									>
 										<div
-											class="w-[120px] h-[120px] rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 cursor-pointer flex-col"
+											class="w-[100px] h-[100px] md:w-[120px] md:h-[120px] rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 hover:border-gray-400 hover:text-gray-400 cursor-pointer flex-col"
 										>
-											<i class="pi pi-plus text-2xl"></i>
-											<div class="text-sm">Drag & Drop</div>
+											<i class="pi pi-plus text-lg md:text-2xl"></i>
+											<div class="text-xs md:text-sm">Drag & Drop</div>
 											<div v-if="state.isUploading" class="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-												<div class="w-16 h-16 relative">
+												<div class="w-12 h-12 md:w-16 md:h-16 relative">
 													<ProgressSpinner style="width: 100%; height: 100%" stroke-width="4" />
-													<div class="absolute inset-0 flex items-center justify-center text-white text-sm">
+													<div class="absolute inset-0 flex items-center justify-center text-white text-xs md:text-sm">
 														{{ state.uploadProgress }}%
 													</div>
 												</div>
@@ -124,7 +124,7 @@
 						</div>
 
 						<div class="flex justify-end mt-4">
-							<Button type="submit" label="스크립트 생성" icon="pi pi-check" />
+							<Button type="submit" label="스크립트 생성" icon="pi pi-check" size="small" class="md:size-normal" />
 						</div>
 					</Form>
 				</template>
@@ -133,10 +133,10 @@
 
 		<template v-if="shortsStore.script">
 			<ScriptSection />
-			<Button severity="success" label="해당 스크립트로 진행하기" class="w-full" @click="shortsStore.setScript(shortsStore.script)" />
+			<Button severity="success" label="해당 스크립트로 진행하기" class="w-full" size="small" @click="shortsStore.setScript(shortsStore.script)" />
 		</template>
 
-		<div v-if="state.error" class="mt-4 p-4 bg-red-100 text-red-700 rounded">
+		<div v-if="state.error" class="mt-4 p-3 md:p-4 bg-red-100 text-red-700 rounded text-sm md:text-base">
 			{{ state.error }}
 		</div>
 	</div>

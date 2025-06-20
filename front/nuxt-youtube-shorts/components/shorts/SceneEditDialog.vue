@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<Dialog :visible="shortsStore.sceneEditDialogVisible" :header="'씬 ' + (state.selectedSceneIndex + 1) + ' 수정'" modal @update:visible="closeDialog">
-			<div v-if="state.targetSceneCopied" class="space-y-4 min-w-[600px] max-h-[600px]">
+			<div v-if="state.targetSceneCopied" class="space-y-4 min-w-[350px] max-h-[600px]">
 				<Accordion>
 					<AccordionTab header="씬 정보">
 						<div class="space-y-4">

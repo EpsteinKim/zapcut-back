@@ -18,6 +18,37 @@ body {
     padding: 0;
 }
 
+/* 모바일 터치 최적화 */
+@media (max-width: 768px) {
+    /* 터치 타겟 최소 크기 보장 */
+    button, .p-button, .p-tag {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* 작은 버튼들은 예외 */
+    .p-button-sm, .p-button-small {
+        min-height: 36px;
+        min-width: 36px;
+    }
+    
+    /* 폰트 크기 조정 */
+    html {
+        font-size: 14px;
+    }
+    
+    /* 스크롤 영역 터치 스크롤 개선 */
+    .overflow-x-auto, .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
+    
+    /* 입력 필드 확대 방지 */
+    input, textarea, select {
+        font-size: 16px;
+    }
+}
+
 /* 전역 스크롤 스타일 */
 .custom-scroll {
     overflow-y: scroll !important;
@@ -54,4 +85,23 @@ body {
 .scrollable:focus {
     outline: none;
     box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 모바일 전용 유틸리티 클래스 */
+@media (max-width: 768px) {
+    .mobile-full-width {
+        width: 100% !important;
+    }
+    
+    .mobile-text-center {
+        text-align: center !important;
+    }
+    
+    .mobile-hidden {
+        display: none !important;
+    }
+    
+    .mobile-flex-col {
+        flex-direction: column !important;
+    }
 }

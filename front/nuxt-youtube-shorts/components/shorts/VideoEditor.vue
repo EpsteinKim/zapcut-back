@@ -1,44 +1,53 @@
 <template>
 	<div>
 		<!-- 헤더 -->
-		<header class="flex justify-between items-center bg-surface-0">
+		<header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-0 p-3 md:p-4 gap-3 md:gap-0">
 			<div class="flex items-center space-x-4">
-				<Button icon="pi pi-arrow-left" text @click="handleBack" />
-				<h1 class="text-xl font-semibold" @click="console.log(shortsStore.getScript())">비디오 편집</h1>
+				<Button icon="pi pi-arrow-left" text size="small" @click="handleBack" />
+				<h1 class="text-lg md:text-xl font-semibold" @click="console.log(shortsStore.getScript())">비디오 편집</h1>
 			</div>
-			<div class="flex items-center space-x-4">
-				<Button label="임시 영상 생성" size="small" icon="pi pi-video" @click="createTempVideo" />
-				<Button severity="help" size="small" :label="!shortsStore.videoUrl ? '영상 생성' : '이전으로'" icon="pi pi-video" @click="createVideo" />
-				<Button label="저장" size="small" icon="pi pi-save" severity="primary" />
+			<div class="flex flex-wrap items-center gap-2 md:space-x-4 w-full md:w-auto">
+				<Button label="임시 영상" size="small" icon="pi pi-video" class="flex-1 md:flex-none" @click="createTempVideo" />
+				<Button
+					severity="help"
+					size="small"
+					:label="!shortsStore.videoUrl ? '영상 생성' : '이전으로'"
+					icon="pi pi-video"
+					class="flex-1 md:flex-none"
+					@click="createVideo"
+				/>
+				<Button label="저장" size="small" icon="pi pi-save" severity="primary" class="flex-1 md:flex-none" />
 			</div>
 		</header>
 
 		<template v-if="!shortsStore.videoUrl">
-			<Message v-if="!shortsStore.composedVideoUrl" severity="info" size="small" class="my-3" icon="pi pi-info-circle">
+			<Message v-if="!shortsStore.composedVideoUrl" severity="info" size="small" class="my-3 mx-3" icon="pi pi-info-circle">
 				영상까지 보고 싶으시다면 임시 영상을 만들어주세요
 			</Message>
-			<Message v-else-if="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" size="small" class="my-3" icon="pi pi-info-circle">
+			<Message v-else-if="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" size="small" class="my-3 mx-3" icon="pi pi-info-circle">
 				임시 영상입니다.
 			</Message>
 		</template>
 
-		<div class="flex overflow-hidden">
-			<!-- 좌측: 비디오 프리뷰 -->
-
-			<div class="w-5/17 mx-2">
+		<div class="flex flex-col lg:flex-row overflow-hidden">
+			<!-- 모바일에서는 상단, 데스크톱에서는 좌측: 비디오 프리뷰 -->
+			<div class="w-full lg:w-5/17 mx-2 mb-4 lg:mb-0">
 				<!-- 비디오 프리뷰 -->
-				<VideoPreview ref="videoPreviewRef" />
-				<VideoControls class="mt-6" />
+				<div class="max-w-sm mx-auto lg:max-w-none">
+					<VideoPreview ref="videoPreviewRef" />
+					<VideoControls class="mt-4 lg:mt-6" />
+				</div>
 
-				<Divider />
+				<Divider class="my-4 lg:my-6" />
 
-				<div class="text-center text-sm text-slate-500">
+				<div class="text-center text-xs md:text-sm text-slate-500">
 					<i class="pi pi-info-circle mr-2"></i>
 					{{ shortsStore.script?.title }}
 				</div>
 			</div>
 
-			<div class="w-12/17 mx-2">
+			<!-- 모바일에서는 하단, 데스크톱에서는 우측: 타임라인과 스크립트 -->
+			<div class="w-full lg:w-12/17 mx-2">
 				<div class="flex flex-col overflow-hidden">
 					<VideoTimeline class="my-2" />
 					<ScriptSection class="my-2" :script="shortsStore.script" />

@@ -1,8 +1,8 @@
 <template>
 	<div class="mb-4">
-		<div class="flex justify-between items-center align-middle mb-4">
+		<div class="flex flex-col md:flex-row md:justify-between md:items-center align-middle mb-4 gap-2">
 			<div class="flex items-center gap-2">
-				<h3 class="text-lg pl-2 font-semibold">생성된 스크립트 & 음성</h3>
+				<h3 class="text-base md:text-lg pl-2 font-semibold">생성된 스크립트 & 음성</h3>
 				<!-- <Button
 					label="음성 일괄 생성"
 					icon="pi pi-volume-up"
@@ -14,14 +14,14 @@
 				/> -->
 			</div>
 
-			<Tag icon="pi pi-clock" severity="info" :value="`${shortsStore.totalDuration.toFixed(1)}초`" class="mr-2" />
+			<Tag icon="pi pi-clock" severity="info" :value="`${shortsStore.totalDuration.toFixed(1)}초`" class="mr-2 text-xs md:text-sm" />
 		</div>
 		<div class="bg-surface-0 rounded-lg">
-			<div class="space-y-4 overflow-y-auto max-h-[550px] min-h-[200px]">
+			<div class="space-y-3 md:space-y-4 overflow-y-auto max-h-[400px] md:max-h-[550px] min-h-[200px] p-2 md:p-0">
 				<div
 					v-for="(scene, index) in shortsStore.script?.scenes"
 					:key="index"
-					class="p-4 bg-surface-50 rounded-lg hover:bg-surface-100 transition-colors"
+					class="p-3 md:p-4 bg-surface-50 rounded-lg hover:bg-surface-100 transition-colors"
 					:class="{ 'opacity-50': state.isGeneratingVoice && state.generatingSceneIndex !== index }"
 				>
 					<div class="flex flex-col gap-3">
@@ -29,12 +29,12 @@
 							<div class="flex flex-col gap-2 w-full">
 								<div class="flex items-center justify-between">
 									<div class="flex items-center gap-2">
-										<span class="font-medium text-lg">씬 {{ index + 1 }}</span>
-										<Tag :value="`${scene.duration.toFixed(1)}초`" />
+										<span class="font-medium text-base md:text-lg">씬 {{ index + 1 }}</span>
+										<Tag :value="`${scene.duration.toFixed(1)}초`" class="text-xs" />
 									</div>
-									<div class="flex items-center gap-2">
+									<div class="flex items-center gap-1 md:gap-2">
 										<MediaUpload :src="scene.videoUrl || scene.imageUrl" @upload-complete="uploadImageComplete(index, $event)">
-											<Button v-tooltip="'파일 업로드'" icon="pi pi-image" text severity="info" />
+											<Button v-tooltip="'파일 업로드'" icon="pi pi-image" text severity="info" size="small" />
 										</MediaUpload>
 										<Button
 											v-if="!scene.voiceUrl"
@@ -42,6 +42,7 @@
 											icon="pi pi-volume-up"
 											text
 											severity="help"
+											size="small"
 											:loading="state.generatingScenes.has(index)"
 											:disabled="state.isGeneratingVoice"
 											@click="generateVoiceForScene(index)"
@@ -51,6 +52,7 @@
 											icon="pi pi-pencil"
 											text
 											severity="secondary"
+											size="small"
 											:disabled="state.isGeneratingVoice"
 											@click.stop="openSceneEditDialog(index)"
 										/>
@@ -59,20 +61,25 @@
 											icon="pi pi-trash"
 											text
 											severity="danger"
+											size="small"
 											:disabled="state.isGeneratingVoice"
 											@click="deleteScene(index)"
 										/>
 									</div>
 								</div>
-								<Tag v-if="scene.description" :value="scene.description" severity="info" class="w-full" />
+								<Tag v-if="scene.description" :value="scene.description" severity="info" class="w-full text-xs md:text-sm" />
 							</div>
 						</div>
 
-						<div class="bg-surface-0 rounded p-3">
+						<div class="bg-surface-0 rounded p-2 md:p-3">
 							<div class="space-y-2">
-								<div v-for="(caption, cIndex) in scene.captions" :key="cIndex" class="flex items-center justify-between text-sm">
-									<span class="flex-1 pr-4">{{ caption.text }}</span>
-									<span class="text-slate-500 whitespace-nowrap">
+								<div
+									v-for="(caption, cIndex) in scene.captions"
+									:key="cIndex"
+									class="flex flex-col md:flex-row md:items-center justify-between text-xs md:text-sm gap-1 md:gap-0"
+								>
+									<span class="flex-1 pr-0 md:pr-4">{{ caption.text }}</span>
+									<span class="text-slate-500 whitespace-nowrap text-xs text-right">
 										{{ caption.startTime.toFixed(1) }}s - {{ caption.endTime.toFixed(1) }}s
 									</span>
 								</div>
@@ -83,7 +90,7 @@
 							<Tag
 								value="AI 음성 듣기"
 								severity="success"
-								class="cursor-pointer hover:bg-green-100 transition-colors"
+								class="cursor-pointer hover:bg-green-100 transition-colors text-xs md:text-sm"
 								@click="playVoice(scene.voiceUrl)"
 							>
 								<template #icon>
