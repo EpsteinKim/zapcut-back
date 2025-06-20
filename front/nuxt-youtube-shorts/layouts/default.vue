@@ -10,11 +10,11 @@
 
 		<main
 			:class="[
-				'absolute transition-all duration-300 h-screen p-6 custom-scroll',
+				'absolute transition-all duration-300 h-screen custom-scroll',
 				sidebarStore.isCollapsed ? 'left-20 w-[calc(100%-5rem)]' : 'left-80 w-[calc(100%-20rem)]'
 			]"
 		>
-			<div class="max-w-screen-2xl mx-auto">
+			<div class="max-w-screen-2xl mx-auto p-4">
 				<slot />
 			</div>
 		</main>

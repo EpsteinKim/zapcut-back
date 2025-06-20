@@ -7,54 +7,41 @@
 				<h1 class="text-xl font-semibold" @click="console.log(shortsStore.getScript())">비디오 편집</h1>
 			</div>
 			<div class="flex items-center space-x-4">
-				<Button label="임시 영상 생성" icon="pi pi-video" @click="createTempVideo" />
-				<Button severity="help" label="영상 생성" icon="pi pi-video" @click="createVideo">
-					{{ !shortsStore.videoUrl ? '영상 생성' : '이전으로' }}
-				</Button>
-				<Button label="저장" icon="pi pi-save" severity="primary" />
+				<Button label="임시 영상 생성" size="small" icon="pi pi-video" @click="createTempVideo" />
+				<Button severity="help" size="small" :label="!shortsStore.videoUrl ? '영상 생성' : '이전으로'" icon="pi pi-video" @click="createVideo" />
+				<Button label="저장" size="small" icon="pi pi-save" severity="primary" />
 			</div>
 		</header>
 
 		<template v-if="!shortsStore.videoUrl">
-			<Message v-if="!shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">
+			<Message v-if="!shortsStore.composedVideoUrl" severity="info" size="small" class="my-3" icon="pi pi-info-circle">
 				영상까지 보고 싶으시다면 임시 영상을 만들어주세요
 			</Message>
-			<Message v-else-if="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">
+			<Message v-else-if="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" size="small" class="my-3" icon="pi pi-info-circle">
 				임시 영상입니다.
 			</Message>
 		</template>
 
 		<div class="flex overflow-hidden">
 			<!-- 좌측: 비디오 프리뷰 -->
-			<div class="bg-surface-0 p-6 flex flex-col">
-				<div class="w-[400px]">
-					<!-- 비디오 프리뷰 -->
-					<VideoPreview ref="videoPreviewRef" />
-					<VideoControls class="mt-6" />
 
-					<Divider />
+			<div class="w-5/17 mx-2">
+				<!-- 비디오 프리뷰 -->
+				<VideoPreview ref="videoPreviewRef" />
+				<VideoControls class="mt-6" />
 
-					<div class="text-center text-sm text-slate-500">
-						<i class="pi pi-info-circle mr-2"></i>
-						{{ shortsStore.script?.title }}
-					</div>
+				<Divider />
+
+				<div class="text-center text-sm text-slate-500">
+					<i class="pi pi-info-circle mr-2"></i>
+					{{ shortsStore.script?.title }}
 				</div>
 			</div>
 
-			<!-- 우측: 타임라인 & 스크립트 -->
-			<div class="flex flex-col overflow-hidden">
-				<div class="p-4">
-					<div class="flex items-center justify-between mb-4">
-						<h3 class="text-xl font-semibold">타임라인</h3>
-						<Tag severity="help" icon="pi pi-info-circle" value="Ctrl 또는 Command(⌘) 키를 누른 상태에서 타임라인을 클릭하세요" />
-						<Tag severity="info" :value="`${formatTime(shortsStore.currentTime)} / ${formatTime(shortsStore.totalDuration)}`" />
-					</div>
-					<VideoTimeline />
-				</div>
-
-				<!-- 스크립트 & 음성 정보 -->
-				<div class="flex-auto p-4">
-					<ScriptSection :script="shortsStore.script" />
+			<div class="w-12/17 mx-2">
+				<div class="flex flex-col overflow-hidden">
+					<VideoTimeline class="my-2" />
+					<ScriptSection class="my-2" :script="shortsStore.script" />
 				</div>
 			</div>
 		</div>

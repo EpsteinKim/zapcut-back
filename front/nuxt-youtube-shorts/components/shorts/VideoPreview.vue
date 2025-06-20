@@ -1,5 +1,5 @@
 <template>
-	<div class="relative shadow-lg rounded-xl overflow-hidden">
+	<div class="relative shadow-lg rounded-xl overflow-hidden mx-auto">
 		<div class="absolute top-3 left-3 z-10">
 			<Tag
 				severity="warning"
@@ -35,11 +35,11 @@
 				@click="toggleMute"
 			/>
 		</div>
-		<div style="aspect-ratio: 9/16" class="relative">
+		<div class="relative w-full" style="aspect-ratio: 9/16; container-type: inline-size">
 			<video
 				v-if="shortsStore.videoUrl"
 				ref="videoRef"
-				class="object-cover bg-black w-full h-full"
+				class="absolute inset-0 w-full h-full object-cover bg-black"
 				:src="shortsStore.videoUrl"
 				:playbackRate="shortsStore.playbackSpeed"
 				:muted="shortsStore.isMuted"
@@ -54,7 +54,7 @@
 			<template v-else-if="shortsStore.composedVideoUrl">
 				<video
 					ref="videoRef"
-					class="object-cover bg-black w-full h-full"
+					class="absolute inset-0 w-full h-full object-cover bg-black"
 					:src="shortsStore.composedVideoUrl"
 					:playbackRate="shortsStore.playbackSpeed"
 					playsinline
@@ -67,29 +67,13 @@
 					브라우저가 비디오를 지원하지 않습니다.
 				</video>
 
-				<div v-if="shortsStore.currentScene?.voiceUrl" class="absolute inset-0 flex flex-col items-center justify-center">
-					<div
-						class="text-white text-center px-4 py-2 max-w-[90%] [filter:drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)]"
-					>
-						<template v-for="(caption, index) in shortsStore.currentCaptions" :key="index">
-							<div class="text-3xl font-bold mb-2 font-Jua-Regular">{{ caption.text }}</div>
-						</template>
-					</div>
-				</div>
+				<CaptionOverlay v-if="shortsStore.currentScene?.voiceUrl" :captions="shortsStore.currentCaptions" />
 			</template>
-			<div v-else class="w-full h-full bg-black flex flex-col items-center justify-center">
-				<div v-if="shortsStore.currentScene?.imageUrl" class="absolute inset-0 bg-cover bg-center flex items-center justify-center">
+			<div v-else class="absolute inset-0 bg-black flex flex-col items-center justify-center">
+				<div v-if="shortsStore.currentScene?.imageUrl" class="absolute inset-0 flex items-center justify-center">
 					<img :src="shortsStore.currentScene.imageUrl" class="max-h-full max-w-full object-contain" alt="Scene image" />
 				</div>
-				<div v-if="shortsStore.currentScene?.voiceUrl" class="absolute inset-0 flex flex-col items-center justify-center">
-					<div
-						class="text-white text-center px-4 py-2 max-w-[90%] [filter:drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)]"
-					>
-						<template v-for="(caption, index) in shortsStore.currentCaptions" :key="index">
-							<div class="text-3xl font-bold mb-2 font-Jua-Regular">{{ caption.text }}</div>
-						</template>
-					</div>
-				</div>
+				<CaptionOverlay v-if="shortsStore.currentScene?.voiceUrl" :captions="shortsStore.currentCaptions" />
 				<div v-else class="text-white text-center">재생할 음성이 없습니다.</div>
 			</div>
 		</div>

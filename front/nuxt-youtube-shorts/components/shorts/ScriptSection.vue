@@ -2,7 +2,7 @@
 	<div class="mb-4">
 		<div class="flex justify-between items-center align-middle mb-4">
 			<div class="flex items-center gap-2">
-				<h3 class="text-lg font-semibold">생성된 스크립트 & 음성</h3>
+				<h3 class="text-lg pl-2 font-semibold">생성된 스크립트 & 음성</h3>
 				<!-- <Button
 					label="음성 일괄 생성"
 					icon="pi pi-volume-up"
