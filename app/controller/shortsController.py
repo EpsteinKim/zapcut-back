@@ -7,7 +7,6 @@ from app.models.schemas import (
     ShortsVideoRequest,
     ShortsVoiceRequest,
 )
-from app.services.web_scraper import AsyncWebScraper
 from fastapi import Depends
 from app.core.dependencies import get_services, Services
 from app.utils.io_processor import IOProcessor
@@ -18,31 +17,12 @@ io_processor = IOProcessor()
 
 
 @router.post("/scripts")
-async def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depends(get_services)):
-    if request.url:
-        async with AsyncWebScraper() as scraper:
-            result = await scraper.scrape_single_page(request.url)
-
-        # 웹 스크래핑 에러 체크
-        if result.get("error"):
-            return Response.error(result.get("error"))
-
-        # 내용이 비어있는 경우 체크
-        if not result.get("content") or result.get("content").strip() == "":
-            return Response.error(f"해당 URL에서 내용을 추출할 수 없습니다: {request.url}")
-
-        video_script = services.google_ai.generate_shorts_scripts(
-            content=result["content"],
-            description=request.description,
-            duration=f"{request.duration}s",
-            title=request.title,
-        )
-    else:
-        video_script = services.google_ai.generate_shorts_scripts(
-            duration=f"{request.duration}s",
-            title=request.title,
-            description=request.description,
-        )
+def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depends(get_services)):
+    video_script = services.google_ai.generate_shorts_scripts(
+        duration=f"{request.duration}s",
+        title=request.title,
+        description=request.description,
+    )
     return Response.with_data(video_script)
 
 

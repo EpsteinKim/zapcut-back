@@ -1,4 +1,5 @@
 from moviepy import (
+    ColorClip,
     VideoFileClip,
     CompositeVideoClip,
     TextClip,
@@ -10,6 +11,7 @@ from moviepy import (
     ImageClip,
 )
 from moviepy.audio import fx as afx
+from moviepy.video import fx as vfx
 from typing import List, Optional, Tuple
 from app.models.schemas import SceneRequest, ShortsSceneRequest, CombineShortsSceneRequest, ShortsVideoRequest
 from app.core.service_locator import get_google_ai_service
@@ -68,51 +70,18 @@ class VideoService:
         except:
             return False
 
-    def _process_gif_file(self, gif_path: str, duration: float) -> ImageClip:
-        try:
-            with Image.open(gif_path) as gif_image:
-                is_animated = getattr(gif_image, "is_animated", False)
-
-                if is_animated:
-                    try:
-                        gif_clip = VideoFileClip(gif_path)
-                        if gif_clip.duration < duration:
-                            loops_needed = int(np.ceil(duration / gif_clip.duration))
-                            gif_clip = gif_clip.loop(loops_needed)
-                        return gif_clip.with_duration(duration)
-                    except Exception as e:
-                        return self._process_static_gif(gif_image, duration)
-                else:
-                    return self._process_static_gif(gif_image, duration)
-        except Exception as e:
-            return self._process_static_gif(None, gif_path, duration)
-
-    def _process_static_gif(
-        self, gif_image: Image.Image | None, gif_path: str | None, duration: float = 1
-    ) -> ImageClip:
-        """정적 GIF 또는 첫 번째 프레임 처리"""
-        if gif_image is None:
-            gif_image = Image.open(gif_path)
-
-        if gif_image.mode != "RGB":
-            gif_image = gif_image.convert("RGB")
-        image_array = np.array(gif_image)
-        return ImageClip(image_array, duration=duration)
-
     async def create_video(self, request: ShortsVideoRequest) -> str:
         google_ai_service = get_google_ai_service()
         video_clips = []
         text_clips = []
         audio_clips = []
         total_duration = sum(scene.duration for scene in request.scenes)
-        background = self.processors.video.create_background(total_duration)
-        video_clips.append(background)
 
+        background = ColorClip(size=(self.video_width, self.video_height), color=(0, 0, 0), duration=total_duration)
+        video_clips.append(background)
         if request.background_music_url:
             music_path = await self.processors.IO.download_file(request.background_music_url)
-            background_music = (
-                AudioFileClip(music_path).with_effects([afx.MultiplyVolume(0.5)]).with_duration(total_duration)
-            )
+            background_music = AudioFileClip(music_path).with_volume_scaled(0.3).with_duration(total_duration)
             audio_clips.append(background_music)
 
         current_time = 0  # 합성 비디오를 만들긴 위한 누적 시간
@@ -126,7 +95,7 @@ class VideoService:
 
                 # GIF 파일인지 확인하고 적절히 처리
                 if self._is_gif_file(image_path):
-                    target_clip = self._process_gif_file(image_path, scene.duration)
+                    target_clip = VideoFileClip(image_path).with_effects([vfx.Loop(duration=scene.duration)])
                 else:
                     # 일반 이미지 처리
                     pil_image = Image.open(image_path)
@@ -169,35 +138,29 @@ class VideoService:
                         start_time=current_time + caption.start_time,
                         end_time=current_time + caption.end_time,
                     )
+
                     text_clips.append(text_clip)
 
-                    tts_result = google_ai_service.genereate_text_to_speech(
-                        caption.text,
-                        duration=caption.end_time - caption.start_time,
-                        speed_multiplier=1.2,
-                    )
+            if scene.voice_url:
+                voice_path = await self.processors.IO.download_file(scene.voice_url)
+                audio_clip = AudioFileClip(voice_path)
+                audio_clip = audio_clip.with_start(current_time)
+                audio_clips.append(audio_clip)
 
-                    audio_clip = AudioFileClip(tts_result["output_path"], fps=tts_result["fps"])
-                    audio_clip = audio_clip.with_start(current_time + caption.start_time)
-                    audio_clips.append(audio_clip)
-
-            # 다음 씬을 위해 현재 씬의 duration만큼 누적
             current_time += scene.duration
 
         final_audio_clip = CompositeAudioClip(audio_clips)
 
         final_video_clip = CompositeVideoClip(video_clips + text_clips)
         final_video_clip = final_video_clip.with_audio(final_audio_clip).with_duration(total_duration)
-        print(final_video_clip.duration)
-        output_path = os.path.join(self.temp_dir, f"shorts_video_{uuid.uuid4()}.mp4")
-        self.processors.video.save_video(final_video_clip, output_path)
+        output_path = self.processors.video.save_video(final_video_clip)
 
         with open(output_path, "rb") as f:
             video_bytes = f.read()
         video_buffer = BytesIO(video_bytes)
 
         try:
-            download_url = await self.processors.IO.upload_file_s3(1, video_buffer, "mp4")
+            download_url = await self.processors.IO.upload_file_s3(1, file_data=video_buffer, ext="mp4")
 
             for clip in video_clips:
                 clip.close()
@@ -281,9 +244,7 @@ class VideoService:
 
         final_video = self.processors.video.create_final_video(all_clips, total_duration, final_audio)
 
-        output_path = os.path.join(self.temp_dir, f"shorts_scene_{uuid.uuid4()}.mp4")
-
-        self.processors.video.save_video(final_video, output_path)
+        output_path = self.processors.video.save_video(final_video)
 
         with open(output_path, "rb") as f:
             video_bytes = f.read()
@@ -322,9 +283,7 @@ class VideoService:
         final_composite_audio = CompositeAudioClip(audio_tracks)
         final_video = final_video.with_audio(final_composite_audio)
 
-        output_path = os.path.join(self.temp_dir, f"combined_shorts_{uuid.uuid4()}.mp4")
-
-        self.processors.video.save_video(final_video, output_path)
+        output_path = self.processors.video.save_video(final_video)
 
         with open(output_path, "rb") as f:
             video_bytes = f.read()

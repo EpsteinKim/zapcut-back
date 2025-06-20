@@ -35,7 +35,6 @@ export const useApi = () => {
 		return response as { data: T; message?: string };
 	};
 
-	// 기본 HTTP 메서드별 요청 함수
 	const get = async <T>(endpoint: string, query?: QueryParams) => {
 		return await Api<T>(endpoint, {
 			method: 'GET',

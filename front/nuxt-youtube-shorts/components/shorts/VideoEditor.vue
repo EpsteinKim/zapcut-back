@@ -8,15 +8,21 @@
 			</div>
 			<div class="flex items-center space-x-4">
 				<Button label="임시 영상 생성" icon="pi pi-video" @click="createTempVideo" />
-				<Button severity="help" label="영상 생성" icon="pi pi-video" @click="createVideo" />
+				<Button severity="help" label="영상 생성" icon="pi pi-video" @click="createVideo">
+					{{ !shortsStore.videoUrl ? '영상 생성' : '이전으로' }}
+				</Button>
 				<Button label="저장" icon="pi pi-save" severity="primary" />
 			</div>
 		</header>
 
-		<Message v-show="!shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">
-			영상까지 보고 싶으시다면 임시 영상을 만들어주세요
-		</Message>
-		<Message v-show="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">임시 영상입니다.</Message>
+		<template v-if="!shortsStore.videoUrl">
+			<Message v-if="!shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">
+				영상까지 보고 싶으시다면 임시 영상을 만들어주세요
+			</Message>
+			<Message v-else-if="!shortsStore.videoUrl && shortsStore.composedVideoUrl" severity="info" class="m-4" icon="pi pi-info-circle">
+				임시 영상입니다.
+			</Message>
+		</template>
 
 		<div class="flex overflow-hidden">
 			<!-- 좌측: 비디오 프리뷰 -->
@@ -77,8 +83,11 @@
 	};
 
 	const createVideo = async () => {
-		blockLoadingStore.setBlocked(true);
-		shortsStore.setVideoUrl('https://youtube-shorts-files.s3.ap-northeast-2.amazonaws.com/1/no_33231547282479371749717721512.mp4');
+		if (shortsStore.videoUrl) {
+			shortsStore.setVideoUrl('');
+			return;
+		}
+		blockLoadingStore.setBlocked(true, '모든 선택사항을 반영한 영상을 생성중입니다...');
 		try {
 			const request: ShortsVideoRequest = {
 				...shortsStore.getScript(),

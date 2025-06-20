@@ -69,10 +69,10 @@
 
 				<div v-if="shortsStore.currentScene?.voiceUrl" class="absolute inset-0 flex flex-col items-center justify-center">
 					<div
-						class="text-white text-center px-4 py-2 max-w-[80%] [filter:drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)]"
+						class="text-white text-center px-4 py-2 max-w-[90%] [filter:drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)]"
 					>
 						<template v-for="(caption, index) in shortsStore.currentCaptions" :key="index">
-							<div class="text-2xl font-bold mb-2">{{ caption.text }}</div>
+							<div class="text-3xl font-bold mb-2 font-Jua-Regular">{{ caption.text }}</div>
 						</template>
 					</div>
 				</div>
@@ -83,10 +83,10 @@
 				</div>
 				<div v-if="shortsStore.currentScene?.voiceUrl" class="absolute inset-0 flex flex-col items-center justify-center">
 					<div
-						class="text-white text-center px-4 py-2 max-w-[80%] [filter:drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)_drop-shadow(0_0_2px_#000)]"
+						class="text-white text-center px-4 py-2 max-w-[90%] [filter:drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)_drop-shadow(0_0_0.7px_#000)]"
 					>
 						<template v-for="(caption, index) in shortsStore.currentCaptions" :key="index">
-							<div class="text-2xl font-bold mb-2">{{ caption.text }}</div>
+							<div class="text-3xl font-bold mb-2 font-Jua-Regular">{{ caption.text }}</div>
 						</template>
 					</div>
 				</div>
@@ -117,7 +117,6 @@
 	};
 
 	const handleVideoEnded = () => {
-		console.log('끝났다');
 		console.log(videoRef.value?.currentTime);
 		shortsStore.setCurrentTime(0);
 		shortsStore.setIsPlaying(false);

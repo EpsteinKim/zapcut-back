@@ -65,6 +65,7 @@ class Scene(BaseModel):
 class SceneWithData(Scene):
     video_url: str | None = None
     image_url: str | None = None
+    voice_url: str | None = None
 
 
 class ShortsScriptRequest(BaseModel):

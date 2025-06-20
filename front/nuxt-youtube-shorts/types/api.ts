@@ -5,7 +5,6 @@ export interface ApiResponse<T = unknown> {
 }
 
 export interface ShortsScriptRequest {
-	url: string;
 	duration: number; // 초 단위
 	title?: string;
 	description?: string;

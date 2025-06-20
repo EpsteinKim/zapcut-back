@@ -188,7 +188,6 @@
 			blockLoadingStore.setBlocked(true, 'AI가 영상 스크립트를 생성중입니다...');
 
 			const generatedScript = await api.shorts.generateScript({
-				url: values.url,
 				duration: values.duration,
 				title: values.title,
 				description: values.description

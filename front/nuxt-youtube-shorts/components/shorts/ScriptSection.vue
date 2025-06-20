@@ -25,7 +25,6 @@
 					:class="{ 'opacity-50': state.isGeneratingVoice && state.generatingSceneIndex !== index }"
 				>
 					<div class="flex flex-col gap-3">
-						<!-- 헤더 섹션 -->
 						<div class="flex flex-wrap items-start justify-between gap-2">
 							<div class="flex flex-col gap-2 w-full">
 								<div class="flex items-center justify-between">
@@ -69,7 +68,6 @@
 							</div>
 						</div>
 
-						<!-- 자막 섹션 -->
 						<div class="bg-surface-0 rounded p-3">
 							<div class="space-y-2">
 								<div v-for="(caption, cIndex) in scene.captions" :key="cIndex" class="flex items-center justify-between text-sm">
@@ -81,7 +79,6 @@
 							</div>
 						</div>
 
-						<!-- 음성 섹션 -->
 						<div v-if="scene.voiceUrl" class="flex justify-end">
 							<Tag
 								value="AI 음성 듣기"

@@ -2,6 +2,11 @@
 @import 'primeicons/primeicons.css';
 @import "tailwindcss-primeui";
 
+@font-face {
+    font-family: 'Jua-Regular';
+    src: url('@/assets/fonts/Jua-Regular.ttf');
+}
+
 /* 기본 스타일 */
 * {
     box-sizing: border-box;

@@ -1,6 +1,5 @@
 <template>
 	<div class="flex flex-col items-center space-y-4">
-		<!-- 재생 컨트롤 -->
 		<div class="flex justify-center space-x-4">
 			<Button icon="pi pi-backward" rounded text class="hover:bg-primary/10" @click="seekRelative(-5)" />
 			<Button :icon="shortsStore.isPlaying ? 'pi pi-pause' : 'pi pi-play'" rounded severity="primary" size="large" @click="togglePlay" />
@@ -27,8 +26,6 @@
 			shortsStore.setCurrentTime(newTime);
 		}, 25);
 	};
-
-	// seek 기능 구현
 	const seekRelative = (offset: number) => {
 		if (timer) {
 			clearInterval(timer);
