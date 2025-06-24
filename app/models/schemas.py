@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from typing import List, TypeVar, Generic, ClassVar
 from fastapi import Query
+from enum import Enum
+
 
 # 제네릭 사용 예시:
 # from typing import TypeVar, Generic
@@ -50,10 +52,28 @@ class Response(BaseModel, Generic[T]):
         return cls(message=message or cls._OK_MESSAGE, data=data)
 
 
+class AnimationEffect(Enum):
+    NONE = "NONE"
+    SEQUENTIAL = "SEQUENTIAL"
+    LARGE_TEXT = "LARGE_TEXT"
+    SMOOTH_POP = "SMOOTH_POP"
+
+
+class StyleEffect(Enum):
+    CUSTOM_COLOR = "CUSTOM_COLOR"
+
+
+class SoundEffect(Enum):
+    LEVEL_UP = "LEVEL_UP"
+
+
 class CaptionInfo(BaseModel):
     text: str
     start_time: float
     end_time: float
+    sound_effect: SoundEffect | None = None
+    animation_effect: AnimationEffect | None = None
+    style_effects: List[StyleEffect] | None = None
 
 
 class Scene(BaseModel):

@@ -1,37 +1,18 @@
 from moviepy import AudioFileClip
-from moviepy.audio.fx.MultiplyVolume import MultiplyVolume
-from moviepy.audio.fx.AudioLoop import AudioLoop
-from moviepy.audio.AudioClip import CompositeAudioClip
-from typing import List
+from app.core.config import SOUND_PATH
+from app.models.schemas import SoundEffect
 
 
 class AudioProcessor:
     def __init__(self):
         pass
 
-    def process_background_music(self, music_path: str, total_duration: float, volume: float = 0.5) -> AudioFileClip:
-        background_music = AudioFileClip(music_path)
+    def create_sound_effect_clip(self, current_time: float, sound_effect: SoundEffect):
+        audio_clip = self.create_sound_effect(current_time, sound_effect)
+        return audio_clip
 
-        if background_music.duration > total_duration:
-            background_music = background_music.subclipped(0, total_duration)
-        else:
-            background_music = background_music.with_effects([AudioLoop(duration=total_duration)])
-
-        return background_music.with_effects([MultiplyVolume(volume)])
-
-    def create_final_audio(
-        self, audio_clips: List[AudioFileClip], background_music: AudioFileClip = None, tts_volume: float = 1.0
-    ) -> CompositeAudioClip:
-        final_clips = []
-
-        # TTS 오디오 처리
-        for audio_clip in audio_clips:
-            if tts_volume != 1.0:
-                audio_clip = audio_clip.with_effects([MultiplyVolume(tts_volume)])
-            final_clips.append(audio_clip)
-
-        # 배경음악 추가
-        if background_music is not None:
-            final_clips.append(background_music)
-
-        return CompositeAudioClip(final_clips) if final_clips else None
+    def create_sound_effect(self, current_time: float, sound_effect: SoundEffect):
+        level_up_sound_path = SOUND_PATH + f"/{sound_effect.value.lower()}.mp3"
+        level_up_audio_clip = AudioFileClip(level_up_sound_path)
+        level_up_audio_clip = level_up_audio_clip.with_start(current_time).with_duration(0.5).with_volume_scaled(0.3)
+        return level_up_audio_clip

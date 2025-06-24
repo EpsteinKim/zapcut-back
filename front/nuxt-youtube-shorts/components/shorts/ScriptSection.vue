@@ -73,15 +73,36 @@
 
 						<div class="bg-surface-0 rounded p-2 md:p-3">
 							<div class="space-y-2">
-								<div
-									v-for="(caption, cIndex) in scene.captions"
-									:key="cIndex"
-									class="flex flex-col md:flex-row md:items-center justify-between text-xs md:text-sm gap-1 md:gap-0"
-								>
-									<span class="flex-1 pr-0 md:pr-4">{{ caption.text }}</span>
-									<span class="text-slate-500 whitespace-nowrap text-xs text-right">
-										{{ caption.startTime.toFixed(1) }}s - {{ caption.endTime.toFixed(1) }}s
-									</span>
+								<div v-for="(caption, cIndex) in scene.captions" :key="cIndex" class="flex flex-col gap-2">
+									<div class="flex flex-col md:flex-row md:items-center justify-between text-xs md:text-sm gap-1 md:gap-0">
+										<span class="flex-1 pr-0 md:pr-4 font-medium">{{ caption.text }}</span>
+										<span class="text-slate-500 whitespace-nowrap text-xs text-right">
+											{{ caption.startTime.toFixed(1) }}s - {{ caption.endTime.toFixed(1) }}s
+										</span>
+									</div>
+									<!-- 효과 표시 -->
+									<div
+										v-if="caption.animationEffect || (caption.styleEffects && caption.styleEffects.length > 0)"
+										class="flex flex-wrap gap-1"
+									>
+										<Tag
+											v-if="caption.animationEffect"
+											:value="CaptionAnimationEffectInfo[caption.animationEffect].title"
+											severity="info"
+											size="small"
+											class="text-xs"
+											:title="CaptionAnimationEffectInfo[caption.animationEffect].description"
+										/>
+										<Tag
+											v-for="effect in caption.styleEffects"
+											:key="effect"
+											:value="StyleEffectInfo[effect].title"
+											severity="success"
+											size="small"
+											class="text-xs"
+											:title="StyleEffectInfo[effect].description"
+										/>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -179,48 +200,6 @@
 			state.isGeneratingVoice = false;
 			state.generatingSceneIndex = -1;
 			state.generatingScenes.delete(sceneIndex);
-		}
-	};
-
-	// 전체 음성 생성
-	const generateVoice = async () => {
-		if (!shortsStore.script) return;
-
-		state.isGeneratingVoice = true;
-		try {
-			const updatedScript = { ...shortsStore.script };
-			const promises: Promise<void>[] = [];
-
-			for (let i = 0; i < updatedScript.scenes.length; i++) {
-				const scene = updatedScript.scenes[i];
-				// 이미 음성이 있거나 생성 중인 씬은 건너뛰기
-				if (scene.voiceUrl || state.generatingScenes.has(i)) continue;
-
-				state.generatingScenes.add(i);
-				const promise = (async () => {
-					try {
-						const text = scene.captions.map((c) => c.text).join(' ');
-						const voiceUrl = await api.shorts.generateVoice(text, scene.duration);
-						updatedScript.scenes[i] = {
-							...scene,
-							voiceUrl
-						};
-					} catch (e) {
-						console.error(`씬 ${i + 1} 음성 생성 실패:`, e);
-					} finally {
-						state.generatingScenes.delete(i);
-					}
-				})();
-				promises.push(promise);
-			}
-
-			await Promise.all(promises);
-			shortsStore.setScript(updatedScript);
-			showMessage('음성 생성이 완료되었습니다', 'success');
-		} catch (e) {
-			showMessage('음성 생성에 실패했습니다: ' + getErrorMessage(e), 'error');
-		} finally {
-			state.isGeneratingVoice = false;
 		}
 	};
 

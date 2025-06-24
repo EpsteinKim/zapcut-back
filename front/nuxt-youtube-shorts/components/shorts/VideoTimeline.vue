@@ -34,7 +34,7 @@
 				@touchend="handleTouchEnd"
 			>
 				<div class="relative flex flex-col" :style="{ width: `${Math.max(shortsStore.totalDuration * timelineScale, 800)}px` }">
-					<div class="h-6 flex border-b border-slate-200 bg-white sticky top-0">
+					<div class="h-6 flex border-b border-slate-200 bg-white sticky top-0 z-0">
 						<div
 							v-for="i in Math.ceil(shortsStore.totalDuration * 2)"
 							:key="i"

@@ -1,3 +1,37 @@
+export const CaptionAnimationEffect = {
+	SEQUENTIAL: 'SEQUENTIAL',
+	LARGE_TEXT: 'LARGE_TEXT',
+	SMOOTH_POP: 'SMOOTH_POP'
+} as const;
+export type CaptionAnimationEffect = (typeof CaptionAnimationEffect)[keyof typeof CaptionAnimationEffect];
+
+export const CaptionAnimationEffectInfo: Record<CaptionAnimationEffect, { title: string; description: string }> = {
+	[CaptionAnimationEffect.SEQUENTIAL]: {
+		title: '순차 생성',
+		description: '자막이 순차적으로 생성됩니다.'
+	},
+	[CaptionAnimationEffect.LARGE_TEXT]: {
+		title: '확대 유지 ',
+		description: '자막이 확대되고 원래대로 돌아옵니다.'
+	},
+	[CaptionAnimationEffect.SMOOTH_POP]: {
+		title: '스무스 팝',
+		description: '자막이 부드럽게 커졌다 돌아갑니다.'
+	}
+} as const;
+
+export const StyleEffect = {
+	CUSTOM_COLOR: 'CUSTOM_COLOR'
+} as const;
+export type StyleEffect = (typeof StyleEffect)[keyof typeof StyleEffect];
+
+export const StyleEffectInfo: Record<StyleEffect, { title: string; description: string }> = {
+	[StyleEffect.CUSTOM_COLOR]: {
+		title: '사용자 정의 색상',
+		description: '자막의 색상을 사용자 정의합니다.'
+	}
+} as const;
+
 export interface ApiResponse<T = unknown> {
 	success?: boolean;
 	message?: string;
@@ -23,6 +57,8 @@ export interface CaptionInfo {
 	text: string;
 	startTime: number;
 	endTime: number;
+	animationEffect?: CaptionAnimationEffect;
+	styleEffects?: StyleEffect[];
 }
 
 export interface ShortsScript {

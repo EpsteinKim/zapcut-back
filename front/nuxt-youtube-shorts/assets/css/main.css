@@ -21,7 +21,7 @@ body {
 /* 모바일 터치 최적화 */
 @media (max-width: 768px) {
     /* 터치 타겟 최소 크기 보장 */
-    button, .p-button, .p-tag {
+    button, .p-button{
         min-height: 44px;
         min-width: 44px;
     }

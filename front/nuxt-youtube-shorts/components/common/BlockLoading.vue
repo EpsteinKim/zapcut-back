@@ -1,6 +1,6 @@
 <template>
 	<BlockUI :blocked="blocked" full-screen>
-		<div v-if="blocked" class="fixed inset-0 flex flex-col items-center justify-center bg-black/10">
+		<div v-if="blocked" class="fixed inset-0 flex flex-col items-center justify-center bg-black/10 z-1000">
 			<div class="relative w-[200px] h-[200px]">
 				<svg class="w-[200px] h-[200px] animate-spin" viewBox="0 0 100 100">
 					<defs>

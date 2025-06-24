@@ -1,6 +1,6 @@
 <template>
 	<div class="flex flex-col items-center space-y-3 md:space-y-4">
-		<div class="flex justify-center space-x-3 md:space-x-4">
+		<div class="flex justify-center items-center space-x-3 md:space-x-4">
 			<Button icon="pi pi-backward" rounded text size="small" class="hover:bg-primary/10 w-10 h-10 md:w-12 md:h-12" @click="seekRelative(-5)" />
 			<Button
 				:icon="shortsStore.isPlaying ? 'pi pi-pause' : 'pi pi-play'"
@@ -35,7 +35,10 @@
 			if (newTime >= shortsStore.totalDuration) {
 				shortsStore.setCurrentTime(0);
 				shortsStore.setIsPlaying(false);
-				if (timer) clearInterval(timer);
+				if (timer) {
+					clearInterval(timer);
+					timer = null;
+				}
 				return;
 			}
 			shortsStore.setCurrentTime(newTime);

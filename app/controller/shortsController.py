@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Query, Response, Depends
 from app.models.schemas import (
     Response,
-    ShortsSceneRequest,
-    CombineShortsSceneRequest,
     ShortsScriptRequest,
     ShortsVideoRequest,
     ShortsVoiceRequest,
@@ -24,18 +22,6 @@ def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depend
         description=request.description,
     )
     return Response.with_data(video_script)
-
-
-@router.post("/scene")
-async def create_shorts_scene(request: ShortsSceneRequest, services: Services = Depends(get_services)):
-    download_url = await services.video.create_shorts_scene(request)
-    return Response.with_data(download_url)
-
-
-@router.post("/combine")
-async def combine_shorts_scene(request: CombineShortsSceneRequest, services: Services = Depends(get_services)):
-    download_url = await services.video.combine_video(request)
-    return Response.with_data(download_url)
 
 
 @router.post("/video")

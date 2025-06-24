@@ -6,6 +6,9 @@ from functools import lru_cache
 ROOT_DIR = Path.cwd() / "app"
 ENV_FILE = str(ROOT_DIR / ".env")
 
+FONT_PATH = str(Path(ROOT_DIR) / "assets" / "fonts")
+SOUND_PATH = str(Path(ROOT_DIR) / "assets" / "sounds")
+
 
 class Settings(BaseSettings):
     app_name: str = "YouTube Shorts Generator"
