@@ -1,23 +1,17 @@
 <template>
-	<div class="flex bg-gray-50">
+	<div class="flex">
 		<!-- 모바일 상단 네비게이션 바 (1280px 이하) -->
-		<div class="xl:hidden fixed top-0 left-0 right-0 z-50 mobile-nav">
-			<div class="bg-white">
+		<div class="xl:hidden fixed top-0 left-0 right-0 z-50 mobile-nav h-[5vh]">
+			<div class="bg-gray-50 border-b border-gray-200">
 				<div class="flex items-center justify-between p-3">
 					<div class="flex items-center gap-3">
-						<Avatar icon="pi pi-video" class="bg-white text-purple-600 w-8 h-8" shape="circle" size="small" />
+						<Avatar icon="pi pi-video" class="text-purple-600 w-8 h-8" shape="circle" size="small" />
 						<div>
 							<h2 class="font-semibold text-sm">비디오 편집기</h2>
 							<p class="text-xs text-gray-500">{{ currentPageTitle }}</p>
 						</div>
 					</div>
-					<Button
-						:icon="mobileMenuOpen ? 'pi pi-times' : 'pi pi-bars'"
-						variant="text"
-						size="small"
-						class="text-gray-900 hover:bg-white/20"
-						@click="toggleMobileMenu"
-					/>
+					<Button :icon="mobileMenuOpen ? 'pi pi-times' : 'pi pi-bars'" variant="text" size="small" class="text-gray-900" @click="toggleMobileMenu" />
 				</div>
 
 				<!-- 모바일 드롭다운 메뉴 -->
@@ -29,7 +23,7 @@
 					leave-from-class="opacity-100 translate-y-0"
 					leave-to-class="opacity-0 -translate-y-2"
 				>
-					<div v-if="mobileMenuOpen" class="bg-white shadow-lg border-t border-purple-300">
+					<div v-if="mobileMenuOpen" class="shadow-lg border-t border-purple-300">
 						<div class="p-3 space-y-2">
 							<NuxtLink
 								to="/generate/shorts"
@@ -57,10 +51,7 @@
 
 		<!-- 데스크톱 사이드바 (1280px 초과) -->
 		<div
-			:class="[
-				'hidden xl:flex flex-col h-screen fixed bg-white border-r border-gray-200 transition-all duration-300',
-				sidebarStore.isCollapsed ? 'w-20' : 'w-80'
-			]"
+			:class="['hidden xl:flex flex-col h-screen fixed border-r border-gray-200 transition-all duration-300', sidebarStore.isCollapsed ? 'w-20' : 'w-80']"
 		>
 			<LayoutHeader />
 			<LayoutMenu />
@@ -73,7 +64,7 @@
 				'w-full min-h-screen',
 				// 모바일/태블릿에서는 상단 패딩, 데스크톱에서는 사이드바 여백
 				'pt-16 xl:pt-0',
-				'xl:absolute xl:transition-all xl:duration-300 xl:h-screen xl:custom-scroll',
+				'xl:absolute xl:transition-all xl:duration-300 xl:h-screen',
 				isDesktop && sidebarStore.isCollapsed
 					? 'xl:left-20 xl:w-[calc(100%-5rem)]'
 					: isDesktop && !sidebarStore.isCollapsed
@@ -81,7 +72,7 @@
 						: ''
 			]"
 		>
-			<div class="max-w-screen-2xl mx-auto p-4">
+			<div class="max-w-screen-2xl mx-auto">
 				<slot />
 			</div>
 		</main>

@@ -147,7 +147,6 @@ class GoogleAIService:
                             voice_name="Enceladus",
                         )
                     ),
-                    language_code="ko-KR",
                 ),
             ),
         )

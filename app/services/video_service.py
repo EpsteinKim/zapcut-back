@@ -133,8 +133,6 @@ class VideoService:
                     text_clips.extend(
                         self.processors.text.create_text_clip(
                             caption=caption,
-                            animation_effect=caption.animation_effect,
-                            style_effects=caption.style_effects,
                             current_time=current_time,
                         )
                     )

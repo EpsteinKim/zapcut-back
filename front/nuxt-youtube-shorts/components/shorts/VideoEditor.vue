@@ -1,5 +1,5 @@
 <template>
-	<div>
+	<div class="px-4">
 		<!-- 헤더 -->
 		<header class="flex flex-col md:flex-row justify-between items-start md:items-center bg-surface-0 p-3 md:p-4 gap-3 md:gap-0">
 			<div class="flex items-center space-x-4">

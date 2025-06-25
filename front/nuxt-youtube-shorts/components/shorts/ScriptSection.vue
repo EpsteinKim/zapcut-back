@@ -81,10 +81,7 @@
 										</span>
 									</div>
 									<!-- 효과 표시 -->
-									<div
-										v-if="caption.animationEffect || (caption.styleEffects && caption.styleEffects.length > 0)"
-										class="flex flex-wrap gap-1"
-									>
+									<div v-if="caption.animationEffect" class="flex flex-wrap gap-1">
 										<Tag
 											v-if="caption.animationEffect"
 											:value="CaptionAnimationEffectInfo[caption.animationEffect].title"
@@ -92,15 +89,6 @@
 											size="small"
 											class="text-xs"
 											:title="CaptionAnimationEffectInfo[caption.animationEffect].description"
-										/>
-										<Tag
-											v-for="effect in caption.styleEffects"
-											:key="effect"
-											:value="StyleEffectInfo[effect].title"
-											severity="success"
-											size="small"
-											class="text-xs"
-											:title="StyleEffectInfo[effect].description"
 										/>
 									</div>
 								</div>

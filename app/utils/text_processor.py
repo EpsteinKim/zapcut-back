@@ -1,7 +1,7 @@
 from moviepy import TextClip, ImageClip
 from app.core.config import FONT_PATH
 from typing import List, Union
-from app.models.schemas import CaptionInfo, AnimationEffect, StyleEffect
+from app.models.schemas import CaptionInfo, AnimationEffect
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -23,21 +23,18 @@ class TextProcessor:
     def create_text_clip(
         self,
         caption: CaptionInfo,
-        animation_effect: AnimationEffect | None = None,
-        style_effects: List[StyleEffect] | None = None,
         current_time: float = 0,
     ) -> Union[TextClip, List[TextClip]]:
 
-        if animation_effect is None:
-            animation_effect = AnimationEffect.NONE
+        animation_effect = caption.animation_effect or AnimationEffect.NONE
 
         animation_renderer = {
             AnimationEffect.SEQUENTIAL: self.sequential_text_clips,
             AnimationEffect.LARGE_TEXT: self.large_text_clip,
             AnimationEffect.SMOOTH_POP: self.smooth_pop_text_clip,
             AnimationEffect.NONE: (
-                lambda caption, current_time, style_effects=None: [
-                    TextClip(**self.get_text_config_copy_with_style_effects(caption.text, style_effects))
+                lambda caption, current_time: [
+                    TextClip(**self.get_text_config_copy_with_style_effects(caption.text))
                     .with_start(current_time + caption.start_time)
                     .with_duration(caption.end_time - caption.start_time)
                     .with_position(("center", "center"))
@@ -46,26 +43,18 @@ class TextProcessor:
         }
 
         # 스타일 효과를 애니메이션 생성 시점에 적용하도록 수정
-        base_text_clips = animation_renderer[animation_effect](caption, current_time, style_effects)
+        base_text_clips = animation_renderer[animation_effect](caption, current_time)
 
         return base_text_clips
 
-    def get_text_config_copy_with_style_effects(self, text: str, style_effects: List[StyleEffect] = None) -> dict:
+    def get_text_config_copy_with_style_effects(self, caption: CaptionInfo) -> dict:
         config = self.base_text_config.copy()
-        config["text"] = text
-
-        if style_effects:
-            if StyleEffect.CUSTOM_COLOR in style_effects:
-                config["color"] = "red"
-            # 추가 스타일 효과들을 여기서 처리할 수 있음
-            # if StyleEffect.BOLD in style_effects:
-            #     config["font_size"] = int(config["font_size"] * 1.1)
+        config["text"] = caption.text
+        config["color"] = caption.color
 
         return config
 
-    def sequential_text_clips(
-        self, caption: CaptionInfo, current_time: float, style_effects: List[StyleEffect] = None
-    ) -> List[TextClip]:
+    def sequential_text_clips(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         text_clips = []
         frame_interval = 2 / 24.0
         final_display_time = 0.2
@@ -75,7 +64,7 @@ class TextProcessor:
         total_duration = caption.end_time - caption.start_time
 
         if total_duration <= final_display_time:
-            config = self.get_text_config_copy_with_style_effects(text, style_effects)
+            config = self.get_text_config_copy_with_style_effects(caption)
             text_clip = TextClip(**config)
             text_clip = text_clip.with_start(start_time).with_duration(total_duration)
             text_clip = text_clip.with_position(("center", "center"))
@@ -85,12 +74,13 @@ class TextProcessor:
         max_frames = int(available_time_for_animation / frame_interval)
 
         if max_frames <= 0:
-            config = self.get_text_config_copy_with_style_effects(text, style_effects)
+            config = self.get_text_config_copy_with_style_effects(caption)
             text_clip = TextClip(**config)
             text_clip = text_clip.with_start(start_time).with_duration(total_duration)
             text_clip = text_clip.with_position(("center", "center"))
             return [text_clip]
 
+        copied_caption = caption.model_copy()
         for i in range(max_frames):
             progress = (i + 1) / max_frames
             chars_to_show = int(len(text) * progress)
@@ -99,7 +89,8 @@ class TextProcessor:
                 group_text = text[:chars_to_show]
                 group_start_time = start_time + (i * frame_interval)
 
-                config = self.get_text_config_copy_with_style_effects(group_text, style_effects)
+                copied_caption.text = group_text
+                config = self.get_text_config_copy_with_style_effects(copied_caption)
                 text_clip = TextClip(**config)
                 text_clip = text_clip.with_start(group_start_time).with_end(group_start_time + frame_interval)
                 text_clip = text_clip.with_position(("center", "center"))
@@ -109,7 +100,7 @@ class TextProcessor:
             final_start_time = start_time + (max_frames * frame_interval)
             final_duration = final_display_time
 
-            config = self.get_text_config_copy_with_style_effects(text, style_effects)
+            config = self.get_text_config_copy_with_style_effects(caption)
             final_clip = TextClip(**config)
             final_clip = final_clip.with_start(final_start_time).with_duration(final_duration)
             final_clip = final_clip.with_position(("center", "center"))
@@ -117,9 +108,7 @@ class TextProcessor:
 
         return text_clips
 
-    def large_text_clip(
-        self, caption: CaptionInfo, current_time: float, style_effects: List[StyleEffect] = None
-    ) -> List[TextClip]:
+    def large_text_clip(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         start_time = current_time + caption.start_time
         total_duration = caption.end_time - caption.start_time
         text_clips = []
@@ -141,7 +130,7 @@ class TextProcessor:
                 duration = total_duration - time_offset
 
             if duration > 0 and total_duration > time_offset:
-                config = self.get_text_config_copy_with_style_effects(caption.text, style_effects)
+                config = self.get_text_config_copy_with_style_effects(caption)
                 config["font_size"] = int(config["font_size"] * scale)
                 config["stroke_width"] = max(1, int(config["stroke_width"] * scale))
                 text_clip = TextClip(**config)
@@ -155,9 +144,7 @@ class TextProcessor:
 
         return text_clips
 
-    def smooth_pop_text_clip(
-        self, caption: CaptionInfo, current_time: float, style_effects: List[StyleEffect] = None
-    ) -> List[TextClip]:
+    def smooth_pop_text_clip(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         start_time = current_time + caption.start_time
         total_duration = caption.end_time - caption.start_time
         animation_duration = 0.2
@@ -188,7 +175,7 @@ class TextProcessor:
                 duration = 0.04  # 마지막 키프레임 지속시간
 
             if duration > 0 and total_duration > time_offset:
-                config = self.get_text_config_copy_with_style_effects(caption.text, style_effects)
+                config = self.get_text_config_copy_with_style_effects(caption)
                 config["font_size"] = int(config["font_size"] * scale)
                 config["stroke_width"] = max(1, int(config["stroke_width"] * scale))
 
@@ -205,7 +192,7 @@ class TextProcessor:
         remaining_duration = total_duration - animation_duration
         if remaining_duration > 0:
             static_start = start_time + animation_duration
-            config = self.get_text_config_copy_with_style_effects(caption.text, style_effects)
+            config = self.get_text_config_copy_with_style_effects(caption)
             static_clip = TextClip(**config)
             static_clip = static_clip.with_start(static_start).with_duration(remaining_duration)
             static_clip = static_clip.with_position(("center", "center"))
@@ -213,7 +200,7 @@ class TextProcessor:
 
         # 전체 자막 시간이 0.2초보다 짧은 경우
         if total_duration <= animation_duration and not text_clips:
-            config = self.get_text_config_copy_with_style_effects(caption.text, style_effects)
+            config = self.get_text_config_copy_with_style_effects(caption)
             fallback_clip = TextClip(**config)
             fallback_clip = fallback_clip.with_start(start_time).with_duration(total_duration)
             fallback_clip = fallback_clip.with_position(("center", "center"))

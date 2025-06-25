@@ -59,12 +59,13 @@ class AnimationEffect(Enum):
     SMOOTH_POP = "SMOOTH_POP"
 
 
-class StyleEffect(Enum):
-    CUSTOM_COLOR = "CUSTOM_COLOR"
-
-
 class SoundEffect(Enum):
     LEVEL_UP = "LEVEL_UP"
+
+
+class TTSVoiceModel(Enum):
+    Zephyr = "Zephyr"  # 높고 밝은 여성 톤
+    Puck = "Puck"  # 높고 밝은 여성 톤
 
 
 class CaptionInfo(BaseModel):
@@ -73,7 +74,7 @@ class CaptionInfo(BaseModel):
     end_time: float
     sound_effect: SoundEffect | None = None
     animation_effect: AnimationEffect | None = None
-    style_effects: List[StyleEffect] | None = None
+    color: str | None = None
 
 
 class Scene(BaseModel):

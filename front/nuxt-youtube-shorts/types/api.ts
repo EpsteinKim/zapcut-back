@@ -20,18 +20,6 @@ export const CaptionAnimationEffectInfo: Record<CaptionAnimationEffect, { title:
 	}
 } as const;
 
-export const StyleEffect = {
-	CUSTOM_COLOR: 'CUSTOM_COLOR'
-} as const;
-export type StyleEffect = (typeof StyleEffect)[keyof typeof StyleEffect];
-
-export const StyleEffectInfo: Record<StyleEffect, { title: string; description: string }> = {
-	[StyleEffect.CUSTOM_COLOR]: {
-		title: '사용자 정의 색상',
-		description: '자막의 색상을 사용자 정의합니다.'
-	}
-} as const;
-
 export interface ApiResponse<T = unknown> {
 	success?: boolean;
 	message?: string;
@@ -58,7 +46,7 @@ export interface CaptionInfo {
 	startTime: number;
 	endTime: number;
 	animationEffect?: CaptionAnimationEffect;
-	styleEffects?: StyleEffect[];
+	color?: string; // (hex code)
 }
 
 export interface ShortsScript {

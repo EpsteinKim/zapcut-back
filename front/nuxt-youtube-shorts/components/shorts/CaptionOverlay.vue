@@ -83,6 +83,11 @@
 			marginBottom: '1.85cqw'
 		};
 
+		console.log(caption);
+		if (caption.color) {
+			style.color = caption.color;
+		}
+
 		return style;
 	};
 </script>
@@ -109,7 +114,7 @@
 		}
 	}
 
-	.animate-scale-effect {
+	.animate-smooth-pop {
 		animation: smooth-pop 0.2s ease-out;
 	}
 
