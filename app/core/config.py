@@ -4,20 +4,23 @@ from functools import lru_cache
 
 # 프로젝트 루트 디렉토리 설정
 ROOT_DIR = Path.cwd() / "app"
-ENV_FILE = str(ROOT_DIR / ".env")
 
 FONT_PATH = str(Path(ROOT_DIR) / "assets" / "fonts")
-SOUND_PATH = str(Path(ROOT_DIR) / "assets" / "sounds")
+BGM_PATH = str(Path(ROOT_DIR) / "assets" / "sounds" / "bgm")
+EFFECT_PATH = str(Path(ROOT_DIR) / "assets" / "sounds" / "effect")
 
 
 class Settings(BaseSettings):
-    app_name: str = "YouTube Shorts Generator"
     openai_api_key: str
     typecast_api_key: str
     google_ai_api_key: str
 
+    proxy: str
+    unlock_proxy: str
+    bright_data_api_key: str
+
     class Config:
-        env_file = str(ENV_FILE)
+        env_file = str(ROOT_DIR / ".env")
 
 
 @lru_cache()

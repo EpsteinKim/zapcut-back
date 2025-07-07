@@ -34,7 +34,7 @@ class TextProcessor:
             AnimationEffect.SMOOTH_POP: self.smooth_pop_text_clip,
             AnimationEffect.NONE: (
                 lambda caption, current_time: [
-                    TextClip(**self.get_text_config_copy_with_style_effects(caption.text))
+                    TextClip(**self.get_text_config_copy_with_style_effects(caption))
                     .with_start(current_time + caption.start_time)
                     .with_duration(caption.end_time - caption.start_time)
                     .with_position(("center", "center"))

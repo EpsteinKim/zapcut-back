@@ -52,7 +52,7 @@ start_server() {
 
     if [ "$DevFlag" = "--dev" ]; then
         echo "메인 서버를 시작합니다..."
-        if ! uvicorn app.main:app --reload --workers 1; then
+        if ! uvicorn app.main:app --reload --workers 10; then
             echo "메인 서버 실행 중 오류가 발생했습니다."
             exit 1
         fi

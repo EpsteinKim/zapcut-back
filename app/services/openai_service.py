@@ -122,4 +122,4 @@ class OpenAIService:
         image_data = decode_base64_data(base64_data)
 
         image_file = BytesIO(image_data)
-        return await self.io_processor.upload_file_s3(user_id, image_file, "png")
+        return await self.io_processor.upload_file_s3(file_data=image_file, ext="png")

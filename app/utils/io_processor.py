@@ -61,9 +61,7 @@ class IOProcessor:
                 os.remove(temp_file_path)
             raise ServerException(f"File download failed: {str(e)}")
 
-    async def upload_file_s3(
-        self, user_id: int, file_data: BytesIO = None, file_path: str = None, ext: str = "tmp"
-    ) -> str:
+    async def upload_file_s3(self, file_data: BytesIO = None, file_path: str = None, ext: str = "tmp") -> str:
         if file_data is None and file_path is None:
             raise ServerException("file_data 또는 file_path 중 하나는 반드시 제공되어야 합니다.")
 
@@ -75,7 +73,7 @@ class IOProcessor:
                 raise ServerException(f"파일을 읽는 중 오류 발생: {str(e)}")
 
         presigned_url = (
-            f"https://ttxbh6wm8f.execute-api.ap-northeast-2.amazonaws.com/prod/upload/{user_id}/no_file.{ext}"
+            f"https://j5tz0t1es8.execute-api.ap-northeast-2.amazonaws.com/prod/upload/expired_plan/no_file.{ext}"
         )
         try:
             content_type = mimetypes.guess_type(f"file.{ext}")[0] or "application/octet-stream"
@@ -89,7 +87,7 @@ class IOProcessor:
                     data = await response.json()
 
                 upload_url = data["uploadUrl"]
-                object_url = upload_url.split("?")[0]
+                object_url = upload_url.split("?")[0].replace("s3.ap-northeast-2.amazonaws.com/", "")
 
                 # Upload file
                 file_data.seek(0)  # Reset file pointer to beginning

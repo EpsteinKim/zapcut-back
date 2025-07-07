@@ -7,24 +7,24 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from app.core.config import get_settings
-from app.controller import shortsController
+from app.controller import shortsController, crawlingController
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
+import json
 
+app = FastAPI(
+    title="ZAPCUT API",
+)
 
-app = FastAPI(title=get_settings().app_name)
-
-# CORS 미들웨어 제거
+# CORS 미들웨어
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 정적 파일 서빙 설정
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 예외 핸들러 등록
 app.add_exception_handler(Exception, exception_handler)
@@ -32,8 +32,56 @@ app.add_exception_handler(RequestValidationError, exception_handler)
 
 # 라우터 등록
 app.include_router(shortsController.router, prefix="/api/v1", tags=["shortsController"])
+app.include_router(crawlingController.router, prefix="/api/v1", tags=["crawlingController"])
 
 
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")
+    return {"message": "ZAPCUT API is running", "status": "healthy"}
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "zapcut-api"}
+
+
+@app.get("/deployment-info")
+async def get_deployment_info():
+    """배포 정보 및 환경 정보를 반환합니다."""
+    try:
+        # 환경 변수에서 배포 정보 가져오기
+        deployment_date = os.getenv("DEPLOYMENT_DATE", "Unknown")
+        environment = os.getenv("ENVIRONMENT", "Unknown")
+
+        # 서버 시작 시간 (프로세스 시작 시간 추정)
+        import psutil
+        import os
+
+        try:
+            process = psutil.Process(os.getpid())
+            start_time = datetime.fromtimestamp(process.create_time())
+            server_start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
+        except:
+            server_start_time = "Unknown"
+
+        return {
+            "service": "zapcut-api",
+            "status": "healthy",
+            "deployment_info": {
+                "deployment_date": deployment_date,
+                "environment": environment,
+                "server_start_time": server_start_time,
+            },
+            "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "server_info": {"python_version": os.sys.version, "pid": os.getpid()},
+        }
+    except Exception as e:
+        return {
+            "service": "zapcut-api",
+            "status": "healthy",
+            "deployment_info": {
+                "error": str(e),
+                "deployment_date": "Unknown",
+                "current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            },
+        }

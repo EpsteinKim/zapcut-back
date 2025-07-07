@@ -1,7 +1,9 @@
-from pydantic import BaseModel
-from typing import List, TypeVar, Generic, ClassVar
-from fastapi import Query
 from enum import Enum
+from pydantic import BaseModel
+from typing import List, TypeVar, Generic, ClassVar, Literal
+from fastapi import Query
+
+from app.core.config import BGM_PATH
 
 
 # 제네릭 사용 예시:
@@ -52,28 +54,93 @@ class Response(BaseModel, Generic[T]):
         return cls(message=message or cls._OK_MESSAGE, data=data)
 
 
-class AnimationEffect(Enum):
-    NONE = "NONE"
-    SEQUENTIAL = "SEQUENTIAL"
-    LARGE_TEXT = "LARGE_TEXT"
-    SMOOTH_POP = "SMOOTH_POP"
+# Enum 대신 문자열 상수로 정의 (Google AI 스키마 호환성을 위해)
+class AnimationEffect(BaseModel):
+    NONE: ClassVar[str] = "NONE"
+    SEQUENTIAL: ClassVar[str] = "SEQUENTIAL"
+    LARGE_TEXT: ClassVar[str] = "LARGE_TEXT"
+    SMOOTH_POP: ClassVar[str] = "SMOOTH_POP"
 
 
-class SoundEffect(Enum):
-    LEVEL_UP = "LEVEL_UP"
+class SoundEffect(BaseModel):
+    LEVEL_UP: ClassVar[str] = "LEVEL_UP"
 
 
-class TTSVoiceModel(Enum):
-    Zephyr = "Zephyr"  # 높고 밝은 여성 톤
-    Puck = "Puck"  # 높고 밝은 여성 톤
+# 타입 정의를 위한 Literal 타입
+TTSVoiceModel = Literal[
+    "Achernar", "Callirrhoe", "Enceladus", "Fenrir", "Kore", "Lapetus", "Leda", "Sadaltager", "Zephyr"
+]
+
+# BGM 타입 정의
+BGMTypeModel = Literal[
+    "SUNGLASS_MAN",
+    "CHEERING_APPLAUSE",
+    "STRANGE_CURIOSITY",
+    "RABBIT",
+    "YOU_FIRST_DO",
+    "SURFING_DANCE",
+    "CUSTOM",
+    "NONE",
+]
+
+
+# 상수 접근을 위한 클래스 (옵션)
+class VoiceModelConstants:
+    Achernar: ClassVar[str] = "Achernar"
+    Callirrhoe: ClassVar[str] = "Callirrhoe"
+    Enceladus: ClassVar[str] = "Enceladus"
+    Fenrir: ClassVar[str] = "Fenrir"
+    Kore: ClassVar[str] = "Kore"
+    Lapetus: ClassVar[str] = "Lapetus"
+    Leda: ClassVar[str] = "Leda"
+    Sadaltager: ClassVar[str] = "Sadaltager"
+    Zephyr: ClassVar[str] = "Zephyr"
+
+
+class BGMType:
+    SUNGLASS_MAN: ClassVar[str] = "SUNGLASS_MAN"
+    CHEERING_APPLAUSE: ClassVar[str] = "CHEERING_APPLAUSE"
+    STRANGE_CURIOSITY: ClassVar[str] = "STRANGE_CURIOSITY"
+    RABBIT: ClassVar[str] = "RABBIT"
+    YOU_FIRST_DO: ClassVar[str] = "YOU_FIRST_DO"
+    SURFING_DANGER: ClassVar[str] = "SURFING_DANGER"
+    CUSTOM: ClassVar[str] = "CUSTOM"
+    NONE: ClassVar[str] = "NONE"
+
+    # BGM 파일 경로 매핑
+    _BGM_PATHS: ClassVar[dict[str, str]] = {
+        "SUNGLASS_MAN": BGM_PATH + "/sunglass_man.mp3",
+        "CHEERING_APPLAUSE": BGM_PATH + "/cheering_applause.mp3",
+        "STRANGE_CURIOSITY": BGM_PATH + "/strange_curiosity.mp3",
+        "RABBIT": BGM_PATH + "/rabbit.mp3",
+        "YOU_FIRST_DO": BGM_PATH + "/you_first_do.mp3",
+        "SURFING_DANCE": BGM_PATH + "/surfing_dance.mp3",  # 실제 파일명에 맞춤
+        "CUSTOM": "",  # 커스텀은 별도 URL 사용
+        "NONE": "",  # 배경음악 없음
+    }
+
+    @classmethod
+    def get_file_path(cls, bgm_type: str) -> str | None:
+        """BGM 타입에 해당하는 파일 경로를 반환합니다."""
+        return cls._BGM_PATHS.get(bgm_type)
+
+    @classmethod
+    def get_all_bgm_info(cls) -> dict[str, str]:
+        """모든 BGM 정보를 반환합니다."""
+        return cls._BGM_PATHS.copy()
+
+    @classmethod
+    def is_valid_bgm_type(cls, bgm_type: str) -> bool:
+        """유효한 BGM 타입인지 확인합니다."""
+        return bgm_type in cls._BGM_PATHS
 
 
 class CaptionInfo(BaseModel):
     text: str
     start_time: float
     end_time: float
-    sound_effect: SoundEffect | None = None
-    animation_effect: AnimationEffect | None = None
+    sound_effect: str | None = None  # SoundEffect의 값들 중 하나
+    animation_effect: str | None = None  # AnimationEffect의 값들 중 하나
     color: str | None = None
 
 
@@ -90,53 +157,26 @@ class SceneWithData(Scene):
 
 
 class ShortsScriptRequest(BaseModel):
-    url: str | None = None
+    page_image_url: str | None = None
     description: str | None = None
     title: str | None = None
     duration: int
+    additional_prompt: str | None = None
 
-    @classmethod
-    def from_query(
-        cls,
-        url: str = Query(None, description="스크랩할 URL"),
-        description: str = Query(None, description="상품 설명"),
-        title: str = Query(None, description="제목"),
-        duration: int = Query(..., description="영상 길이(초)"),
-    ) -> "ShortsScriptRequest":
-        return cls(url=url, description=description, title=title, duration=duration)
+
+class ShortsImageRequest(BaseModel):
+    prompt: str
 
 
 class ShortsVoiceRequest(BaseModel):
     text: str
-    duration: float | None = None
-
-    @classmethod
-    def from_query(
-        cls,
-        text: str = Query(..., description="음성 텍스트"),
-        duration: float = Query(None, description="음성 길이(초)"),
-    ) -> "ShortsVoiceRequest":
-        return cls(text=text, duration=duration)
-
-
-class SceneRequest(BaseModel):
-    captions: List[str]
-    image_url: str | None = None
-    video_url: str | None = None
+    duration: float
+    voice_model: TTSVoiceModel = VoiceModelConstants.Kore
+    voice_temperature: float = 0.3
 
 
 class ShortsVideoRequest(BaseModel):
     scenes: List[SceneWithData]
-    background_music_url: str | None = None  # 배경 음악 URL (선택적)
-    music_volume: float | None = 0.5  # 배경 음악 볼륨 (0.0 ~ 1.0, 기본값 0.5)
-
-
-class ShortsSceneRequest(BaseModel):
-    video_url: str | None = None
-    image_url: str | None = None
-    captions: List[CaptionInfo]
-
-
-class CombineShortsSceneRequest(BaseModel):
-    scene_urls: List[str]  # video_urls (이미 만들어진 url들)
-    background_music_url: str | None = None
+    bgm_id: BGMTypeModel | None = None
+    custom_bgm_url: str | None = None
+    music_volume: float = 0.4
