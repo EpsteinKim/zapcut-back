@@ -18,6 +18,7 @@ from app.models.schemas import TTSVoiceModel, SceneWithData, CaptionInfo
 from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
+from app.utils.os_processor import get_temp_dir
 
 
 class SimpleCaptionInfo(BaseModel):
@@ -42,10 +43,13 @@ class GoogleAIService:
         settings = get_settings()
         self.client = genai.Client(api_key=settings.google_ai_api_key)
         self.io_processor = IOProcessor()
-        self.temp_dir = tempfile.mkdtemp()
+        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
+        self.temp_dir = get_temp_dir("google_ai_service")
 
     def __del__(self):
-        if hasattr(self, "temp_dir"):
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            import shutil
+
             shutil.rmtree(self.temp_dir)
 
     async def generate_shorts_scripts(
@@ -151,6 +155,12 @@ class GoogleAIService:
 
         print(translated_prompt)
 
+        translated_prompt += f"""
+            - must not include Children appearing in the content
+            - must not include Content that may appear violent
+            - must not include Content that is excessively stimulating and could have negative effects on people
+        """
+
         for attempt in range(max_retries):
             try:
                 response = await self.client.aio.models.generate_images(
@@ -213,8 +223,7 @@ class GoogleAIService:
                 data = response.candidates[0].content.parts[0].inline_data.data
                 audio_data = decode_base64_data(data)
 
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                    temp_wav_path = temp_file.name
+                temp_wav_path = os.path.join(self.temp_dir, f"tts_audio_{uuid.uuid4()}.mp3")
                 audio = AudioSegment(audio_data, sample_width=2, frame_rate=24000, channels=1)
 
                 if speed_multiplier != 1.0:

@@ -6,7 +6,10 @@ from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from app.core.config import get_settings
+from app.core.config import get_settings, TEMP_DIR
+from app.utils.cleanup_handler import initialize_cleanup_handler
+
+import logging
 from app.controller import shortsController, crawlingController
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
@@ -26,13 +29,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 예외 핸들러 등록
+# 통합 예외 핸들러 등록 (모든 예외를 message 형식으로 처리)
 app.add_exception_handler(Exception, exception_handler)
-app.add_exception_handler(RequestValidationError, exception_handler)
 
 # 라우터 등록
 app.include_router(shortsController.router, prefix="/api/v1", tags=["shortsController"])
 app.include_router(crawlingController.router, prefix="/api/v1", tags=["crawlingController"])
+
+# 로거 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 종료 시 정리 핸들러 초기화
+cleanup_handler = initialize_cleanup_handler(TEMP_DIR)
+logger.info("🚀 ZAPCUT API 서비스 시작")
 
 
 @app.get("/")

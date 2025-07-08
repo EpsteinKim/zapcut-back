@@ -40,13 +40,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# 비root 사용자 생성 (보안)
-RUN useradd --create-home --shell /bin/bash app
-RUN chown -R app:app /app
-USER app
+# temp 디렉토리 생성
+RUN mkdir -p /app/temp
 
 # 애플리케이션 소스 코드 복사
-COPY --chown=app:app . .
+COPY . .
 
 # 포트 노출
 EXPOSE 8000

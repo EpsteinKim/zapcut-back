@@ -2,27 +2,46 @@ import urllib.request
 import ssl
 import re
 import base64
-import tempfile
+
+# import tempfile  # 제거
 import os
 import requests
 from bs4 import BeautifulSoup
 from html2image import Html2Image
 from io import BytesIO
-from app.core.config import get_settings
+from app.core.config import get_settings, TEMP_DIR
 from app.exceptions.http_exceptions import ServerException
 from app.utils.base64_decoder import decode_base64_to_bytesio
 from app.utils.io_processor import IOProcessor
+import uuid
 
 
 class CrawlingService:
     def __init__(self):
         self.unlock_proxy = get_settings().unlock_proxy
-        self.hti = Html2Image(size=(1280, 720))
+        option = {
+            "size": (1280, 720),
+        }
+        if os.getenv("ENVIRONMENT") == "production":
+            option = {
+                "browser_executable": "/usr/bin/chromium",
+                "custom_flags": ["--no-sandbox", "--disable-dev-shm-usage"],
+            }
+        else:
+            option = {
+                "custom_flags": ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            }
+        self.hti = Html2Image(
+            **option,
+        )
         self.io_processor = IOProcessor()
 
     def take_screenshot(self, html_content: str, width: int = 1280, height: int = 720) -> str:
         try:
-            with tempfile.TemporaryDirectory() as temp_dir:
+            # with tempfile.TemporaryDirectory() as temp_dir:  # 기존 코드
+            temp_dir = os.path.join(TEMP_DIR, f"screenshot_{uuid.uuid4()}")
+            os.makedirs(temp_dir, exist_ok=True)
+            try:
                 self.hti.size = (width, height)
                 self.hti.output_path = temp_dir
                 image_paths = self.hti.screenshot(
@@ -44,6 +63,12 @@ class CrawlingService:
                         return base64.b64encode(image_data).decode("utf-8")
                 else:
                     raise ServerException("스크린샷 생성에 실패했습니다.")
+            finally:
+                # 임시 디렉토리 정리
+                if os.path.exists(temp_dir):
+                    import shutil
+
+                    shutil.rmtree(temp_dir)
         except Exception as e:
             raise ServerException(f"Screenshot error: {e}")
 

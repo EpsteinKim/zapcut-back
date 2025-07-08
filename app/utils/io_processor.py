@@ -1,17 +1,20 @@
 import os
 import uuid
 import aiohttp
-import tempfile
+
+# import tempfile  # 제거
 from app.exceptions.http_exceptions import ServerException
 import mimetypes
 import requests
 from io import BytesIO
 from PIL import Image
+from app.utils.os_processor import get_temp_dir
 
 
 class IOProcessor:
     def __init__(self):
-        self.temp_dir = tempfile.mkdtemp()
+        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
+        self.temp_dir = get_temp_dir("io_processor")
 
     async def download_file(self, url: str) -> str:
         if os.path.isfile(url):
@@ -45,8 +48,6 @@ class IOProcessor:
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
                             downloaded_size += len(chunk)
-
-                    # print(f"다운로드 완료 - 크기: {downloaded_size} bytes")
 
                     # 파일 무결성 검증
                     if not self._verify_file_integrity(temp_file_path, expected_size, content_type):

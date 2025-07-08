@@ -24,6 +24,8 @@ import numpy as np
 import mimetypes
 import asyncio
 import logging
+import uuid
+from app.core.config import TEMP_DIR
 
 
 @dataclass
@@ -38,7 +40,8 @@ class VideoService:
     def __init__(self):
         self.video_width = 1080
         self.video_height = 1920
-        self.temp_dir = tempfile.mkdtemp()
+        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
+        self.temp_dir = os.path.join(TEMP_DIR, f"video_session_{uuid.uuid4()}")
         self.processors = Processors(
             video=VideoProcessor(self.video_width, self.video_height),
             audio=AudioProcessor(),

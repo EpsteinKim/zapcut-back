@@ -17,9 +17,13 @@ logger.addHandler(console_handler)
 class BaseHTTPException(HTTPException):
     def __init__(self, status_code: int, message: str, data: dict | None = None):
         super().__init__(status_code=status_code, detail=message)
+        self.message = message  # 메시지를 별도 속성으로 저장
         logger.error(f"HTTP {status_code}: {message}")
         if data is not None:
             self.data = data
+
+    def __str__(self):
+        return self.message
 
 
 class BadRequestError(BaseHTTPException):

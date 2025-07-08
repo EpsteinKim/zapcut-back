@@ -1,9 +1,9 @@
-from moviepy import TextClip, ImageClip
+from moviepy import TextClip
 from app.core.config import FONT_PATH
 from typing import List, Union
 from app.models.schemas import CaptionInfo, AnimationEffect
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+import os
+from app.utils.os_processor import get_temp_dir
 
 
 class TextProcessor:
@@ -19,6 +19,14 @@ class TextProcessor:
             "method": "caption",
             "size": (int(self.video_width * 0.9), int(self.video_height * 0.5)),
         }
+
+        self.temp_dir = get_temp_dir("text_processor")
+
+    def __del__(self):
+        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
+            import shutil
+
+            shutil.rmtree(self.temp_dir)
 
     def create_text_clip(
         self,

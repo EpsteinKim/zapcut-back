@@ -4,16 +4,20 @@ from moviepy.audio.fx.AudioLoop import AudioLoop
 from moviepy.audio.AudioClip import CompositeAudioClip
 import os
 import aiohttp
-import tempfile
+
+# import tempfile  # 제거
 import uuid
 from app.exceptions.http_exceptions import ServerException
+
+from app.utils.os_processor import get_temp_dir
 
 
 class VideoProcessor:
     def __init__(self, video_width: int, video_height: int):
         self.video_width = video_width
         self.video_height = video_height
-        self.temp_dir = tempfile.mkdtemp()
+        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
+        self.temp_dir = get_temp_dir("video_processor")
 
     def create_background(self, duration: float) -> ColorClip:
         try:
