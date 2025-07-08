@@ -33,15 +33,15 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/zapcut-back
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=blue
       - DEPLOYMENT_DATE=${BLUE_DEPLOYMENT_DATE:-Unknown}
       - TZ=Asia/Seoul
     volumes:
-      - ./temp:/app/temp
-      - ./.env:/app/.env
+      - ./temp:/zapcut-back/temp
+      - ./.env:/zapcut-back/.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -62,15 +62,16 @@ services:
     ports:
       - "8001:8000" # 외부 8001 -> 내부 8000
     environment:
-      - PYTHONPATH=/app
+      - PYTHONPATH=/zapcut-back
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=green
+
       - DEPLOYMENT_DATE=${GREEN_DEPLOYMENT_DATE:-Unknown}
       - TZ=Asia/Seoul
     volumes:
-      - ./temp:/app/temp
-      - ./.env:/app/.env
+      - ./temp:/zapcut-back/temp
+      - ./.env:/zapcut-back/.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"] # 컨테이너 내부는 8000 포트
       interval: 30s

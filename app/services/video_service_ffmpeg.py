@@ -94,7 +94,7 @@ class VideoServiceFFmpeg:
                 await asyncio.sleep(1 * (attempt + 1))
 
     async def _prepare_background_music(self, request: ShortsVideoRequest, total_duration: float) -> str:
-        """배경 음악 준비"""
+        """배경 음악 준비 - 개선된 버전"""
         if request.bgm_id == BGMType.CUSTOM and request.custom_bgm_url:
             music_path = await self.io_processor.download_file(request.custom_bgm_url)
         elif request.bgm_id != BGMType.NONE:
@@ -105,22 +105,26 @@ class VideoServiceFFmpeg:
         if not music_path or not os.path.exists(music_path):
             return None
 
-        # 배경음악 길이 조정 및 볼륨 조정
-        adjusted_music_path = os.path.join(self.temp_dir, f"bgm_{uuid.uuid4()}.mp3")
-
-        import subprocess
+        # 배경음악을 전체 길이에 맞게 반복하고 볼륨 조정
+        adjusted_music_path = os.path.join(self.temp_dir, f"bgm_{uuid.uuid4()}.aac")
 
         cmd = [
             "ffmpeg",
             "-y",
+            "-stream_loop",
+            "-1",  # 무한 반복
             "-i",
             music_path,
             "-t",
-            str(total_duration),
+            str(total_duration),  # 총 길이로 자르기
             "-af",
             f"volume={request.music_volume}",
             "-c:a",
             "aac",
+            "-b:a",
+            "128k",
+            "-ar",
+            "48000",
             adjusted_music_path,
         ]
 
@@ -142,16 +146,17 @@ class VideoServiceFFmpeg:
                     # 텍스트 이스케이프 처리
                     escaped_text = caption.text.replace("'", "\\'").replace(":", "\\:")
 
-                    # 텍스트 오버레이 추가
-                    new_video = await self.ffmpeg_processor.add_text_overlay(
+                    # 애니메이션 효과가 있는 텍스트 오버레이 추가
+                    new_video = await self.ffmpeg_processor.add_text_overlay_with_animation(
                         current_video,
                         escaped_text,
                         current_time + caption.start_time,
                         caption.end_time - caption.start_time,
-                        font_size=100,
+                        animation_effect=caption.animation_effect or "NONE",
+                        font_size=120,  # 더 큰 폰트 크기로 굵게 보이게
                         font_color=caption.color or "white",
                         stroke_color="black",
-                        stroke_width=3,
+                        stroke_width=10,  # 테두리는 얇게, 폰트는 굵게
                     )
 
                     # 이전 비디오 파일 정리 (원본 제외)
@@ -168,68 +173,54 @@ class VideoServiceFFmpeg:
         return current_video
 
     async def _collect_scene_audio(self, scenes: List[SceneWithData]) -> List[str]:
-        """씬별 오디오 수집"""
+        """씬별 오디오 수집 - 개선된 버전"""
         audio_files = []
         current_time = 0
 
         for scene in scenes:
-            scene_audio_files = []
-
-            # 음성 파일
+            # 음성 파일 처리
             if scene.voice_url:
                 try:
                     voice_path = await self.io_processor.download_file(scene.voice_url)
 
-                    # 음성 파일 길이 조정
-                    adjusted_voice_path = os.path.join(self.temp_dir, f"voice_{uuid.uuid4()}.mp3")
+                    # 음성 파일을 올바른 시간에 배치 - offset 사용
+                    adjusted_voice_path = os.path.join(self.temp_dir, f"voice_{uuid.uuid4()}.aac")
+
+                    # 무음 패딩과 함께 오디오 배치
                     cmd = [
                         "ffmpeg",
                         "-y",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"anullsrc=channel_layout=stereo:sample_rate=48000:duration={current_time}",  # 앞쪽 무음
                         "-i",
                         voice_path,
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        f"anullsrc=channel_layout=stereo:sample_rate=48000:duration=1",  # 뒤쪽 무음 (1초)
+                        "-filter_complex",
+                        f"[0:a][1:a][2:a]concat=n=3:v=0:a=1[out]",
+                        "-map",
+                        "[out]",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "128k",
                         "-t",
-                        str(scene.duration),
-                        "-af",
-                        f"adelay={int(current_time * 1000)}|{int(current_time * 1000)}",
+                        str(current_time + scene.duration + 1),  # 전체 길이 설정
                         adjusted_voice_path,
                     ]
 
                     result = await self.ffmpeg_processor._run_ffmpeg_command(cmd)
                     if result.returncode == 0:
-                        scene_audio_files.append(adjusted_voice_path)
+                        audio_files.append(adjusted_voice_path)
+                    else:
+                        logging.warning(f"음성 처리 실패: {result.stderr}")
                 except Exception as e:
                     logging.warning(f"음성 처리 실패: {str(e)}")
 
-            # 효과음
-            if scene.captions:
-                for caption in scene.captions:
-                    if caption.sound_effect:
-                        try:
-                            effect_path = f"/app/app/assets/sounds/effect/{caption.sound_effect.lower()}.mp3"
-                            if os.path.exists(effect_path):
-                                # 효과음 시간 조정
-                                adjusted_effect_path = os.path.join(self.temp_dir, f"effect_{uuid.uuid4()}.mp3")
-                                effect_start_time = current_time + caption.start_time
-
-                                cmd = [
-                                    "ffmpeg",
-                                    "-y",
-                                    "-i",
-                                    effect_path,
-                                    "-t",
-                                    "0.5",  # 효과음 길이 제한
-                                    "-af",
-                                    f"adelay={int(effect_start_time * 1000)}|{int(effect_start_time * 1000)},volume=0.3",
-                                    adjusted_effect_path,
-                                ]
-
-                                result = await self.ffmpeg_processor._run_ffmpeg_command(cmd)
-                                if result.returncode == 0:
-                                    scene_audio_files.append(adjusted_effect_path)
-                        except Exception as e:
-                            logging.warning(f"효과음 처리 실패: {str(e)}")
-
-            audio_files.extend(scene_audio_files)
             current_time += scene.duration
 
         return audio_files
@@ -269,24 +260,31 @@ class VideoServiceFFmpeg:
         # 4. 텍스트 오버레이 추가
         video_with_text = await self._add_text_overlays_to_video(concatenated_video, request.scenes)
 
-        # 5. 오디오 처리
+        # 5. 오디오 처리 - 개선된 버전
         audio_files = []
+        audio_volumes = []
 
         # 배경음악 추가
         bgm_path = await self._prepare_background_music(request, total_duration)
         if bgm_path:
             audio_files.append(bgm_path)
+            audio_volumes.append(0.3)  # 배경음악 볼륨 (30%)
+            logging.warning(f"배경음악 추가됨: {bgm_path}")
 
         # 씬별 오디오 수집
         scene_audio_files = await self._collect_scene_audio(request.scenes)
         audio_files.extend(scene_audio_files)
+        # 음성은 100% 볼륨
+        audio_volumes.extend([1.0] * len(scene_audio_files))
+        logging.warning(f"음성 파일 {len(scene_audio_files)}개 추가됨: {scene_audio_files}")
 
         # 6. 최종 비디오에 오디오 추가
         if audio_files:
-            # 볼륨 조정 (배경음악은 이미 조정됨)
-            audio_volumes = [1.0] * len(audio_files)
+            logging.warning(f"총 오디오 파일: {len(audio_files)}개, 볼륨: {audio_volumes}")
             final_video = await self.ffmpeg_processor.add_audio(video_with_text, audio_files, audio_volumes)
         else:
+            # 오디오가 없는 경우 원본 비디오 사용
+            logging.warning("오디오 파일이 없음 - 무음 비디오 생성")
             final_video = video_with_text
 
         # 7. 최종 비디오 파일 읽기 및 업로드

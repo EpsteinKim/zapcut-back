@@ -9,7 +9,7 @@ import os
 
 class Services:
     def __init__(self):
-        if os.getenv("ENVIRONMENT") == "production":
+        if os.getenv("ENV") == "production":
             self.video = VideoService()
         else:
             self.video = VideoServiceFFmpeg()

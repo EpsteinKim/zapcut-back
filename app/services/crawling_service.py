@@ -22,7 +22,7 @@ class CrawlingService:
         option = {
             "size": (1280, 720),
         }
-        if os.getenv("ENVIRONMENT") == "production":
+        if os.getenv("ENV") == "production":
             option = {
                 "browser_executable": "/usr/bin/chromium",
                 "custom_flags": ["--no-sandbox", "--disable-dev-shm-usage"],

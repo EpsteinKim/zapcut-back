@@ -16,7 +16,6 @@ class VideoProcessor:
     def __init__(self, video_width: int, video_height: int):
         self.video_width = video_width
         self.video_height = video_height
-        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
         self.temp_dir = get_temp_dir("video_processor")
 
     def create_background(self, duration: float) -> ColorClip:

@@ -3,11 +3,6 @@
 # 올인원 FastAPI 블루그린 배포 스크립트
 set -e
 
-# 배포 정보 설정
-DEPLOYMENT_DATE=$(date '+%Y-%m-%d %H:%M:%S')
-ENVIRONMENT="production"
-
-# 함수 정의
 show_usage() {
     echo "🚀 ZAPCUT FastAPI 블루그린 배포 스크립트"
     echo "======================================="
@@ -17,7 +12,7 @@ show_usage() {
     echo "명령어:"
     echo "  deploy              - 반대 환경으로 배포 (기본값)"
     echo "  status|check        - 현재 상태 및 배포 정보 확인"
-    echo "  switch [blue|green] - 지정된 환경으로 전환"
+    echo "  switch              - 환경 전환 및 우선순위 변경"
     echo "  stop                - 서비스 중지"
     echo "  restart             - 서비스 재시작"
     echo "  setup               - EC2 환경 설정"
@@ -26,8 +21,7 @@ show_usage() {
     echo "  $0                    # 배포 (기본값)"
     echo "  $0 deploy             # 반대 환경으로 배포"
     echo "  $0 status             # 상태 및 배포 정보 확인"
-    echo "  $0 switch blue        # 블루 환경으로 전환"
-    echo "  $0 switch green       # 그린 환경으로 전환"
+    echo "  $0 switch             # 현재 주환경의 반대로 전환"
     echo "  $0 stop               # 모든 서비스 중지"
     echo "  $0 restart            # 서비스 재시작"
     echo "  $0 setup              # EC2 설정 (중지하고 사용)"
@@ -38,8 +32,9 @@ show_usage() {
 debug_info() {
     echo "🔍 디버깅 정보 수집 중..."
     
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << 'EOF'
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'EOF'
         cd ~/zapcut-back
+        export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         
         echo "🔍 === 디버깅 정보 ==="
         echo ""
@@ -149,22 +144,49 @@ switch_nginx_upstream() {
 switch_environment() {
     local TARGET_ENV=$1
     
+    # TARGET_ENV가 없으면 현재 주 환경의 반대로 설정
     if [ -z "$TARGET_ENV" ]; then
-        echo "❌ 전환할 환경을 지정해주세요."
-        echo "사용법: $0 switch [blue|green]"
-        exit 1
-    fi
-    
-    if [ "$TARGET_ENV" != "blue" ] && [ "$TARGET_ENV" != "green" ]; then
-        echo "❌ 잘못된 환경입니다. 'blue' 또는 'green'을 입력하세요."
-        exit 1
+        echo "🔍 현재 우선순위 환경 확인 중..."
+        
+        # 원격 서버에서 현재 우선순위 확인
+        CURRENT_PRIMARY=$(ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'EOF'
+            cd ~/zapcut-back
+            export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
+            if [ -f nginx.conf ]; then
+                if grep -q 'set \$primary_backend "zapcut-api-blue:8000"' nginx.conf; then
+                    echo "blue"
+                elif grep -q 'set \$primary_backend "zapcut-api-green:8000"' nginx.conf; then
+                    echo "green"
+                else
+                    echo "blue"  # 기본값
+                fi
+            else
+                echo "blue"  # nginx.conf가 없으면 기본값
+            fi
+EOF
+        )
+        
+        # 반대 환경으로 설정
+        if [ "$CURRENT_PRIMARY" = "blue" ]; then
+            TARGET_ENV="green"
+            echo "📋 현재 주 환경: blue → green으로 전환"
+        else
+            TARGET_ENV="blue"
+            echo "📋 현재 주 환경: green → blue로 전환"
+        fi
+    else
+        if [ "$TARGET_ENV" != "blue" ] && [ "$TARGET_ENV" != "green" ]; then
+            echo "❌ 잘못된 환경입니다. 'blue' 또는 'green'을 입력하세요."
+            exit 1
+        fi
     fi
     
     echo "🔄 $TARGET_ENV 환경으로 전환..."
     
     # 원격 서버에서 환경 스위치 실행
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << EOF
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << EOF
         cd ~/zapcut-back
+        export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         
         # 현재 활성 환경 확인
         if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
@@ -210,14 +232,37 @@ switch_environment() {
             done
         fi
         
-        # Nginx 자동 감지 확인
-        echo "🔧 Nginx 자동 감지 확인..."
+        # Nginx 우선순위 변경
+        echo "🔧 Nginx 우선순위를 $TARGET_ENV 환경으로 변경 중..."
         
-        # Nginx 설정 리로드
-        if docker exec zapcut-nginx nginx -s reload > /dev/null 2>&1; then
-            echo "✅ $TARGET_ENV 환경으로 전환 완료 (자동 fallback)"
+        # nginx.conf 백업
+        cp nginx.conf nginx.conf.bak
+        
+        # 활성 환경에 따라 우선순위 변경
+        if [ "$TARGET_ENV" = "blue" ]; then
+            # 블루 우선, 그린 fallback
+            sed -i 's/set \$primary_backend "zapcut-api-[^"]*"/set \$primary_backend "zapcut-api-blue:8000"/g' nginx.conf
+            sed -i 's/set \$fallback_backend "zapcut-api-[^"]*"/set \$fallback_backend "zapcut-api-green:8000"/g' nginx.conf
+            echo "📋 설정: 블루 우선 → 그린 fallback"
         else
-            echo "❌ Nginx 리로드 실패"
+            # 그린 우선, 블루 fallback
+            sed -i 's/set \$primary_backend "zapcut-api-[^"]*"/set \$primary_backend "zapcut-api-green:8000"/g' nginx.conf
+            sed -i 's/set \$fallback_backend "zapcut-api-[^"]*"/set \$fallback_backend "zapcut-api-blue:8000"/g' nginx.conf
+            echo "📋 설정: 그린 우선 → 블루 fallback"
+        fi
+        
+        # Nginx 설정 테스트 및 리로드
+        if docker exec zapcut-nginx nginx -t > /dev/null 2>&1; then
+            if docker exec zapcut-nginx nginx -s reload > /dev/null 2>&1; then
+                echo "✅ $TARGET_ENV 환경으로 우선순위 전환 완료!"
+            else
+                echo "❌ Nginx 리로드 실패"
+                cp nginx.conf.bak nginx.conf
+                exit 1
+            fi
+        else
+            echo "❌ Nginx 설정 오류"
+            cp nginx.conf.bak nginx.conf
             exit 1
         fi
 EOF
@@ -233,10 +278,12 @@ EOF
 show_status() {
     echo "🔍 원격 서버 상태 확인 중..."
     
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << 'EOF'
-        echo "🔍 블루그린 환경 상태"
-        echo "===================="
-        
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'EOF'
+        # Ubuntu 업데이트 메시지 숨기기
+        export DEBIAN_FRONTEND=noninteractive
+        touch ~/.hushlogin 2>/dev/null || true
+
+        cd ~/zapcut-back
         # 컨테이너 상태 확인
         BLUE_RUNNING=false
         GREEN_RUNNING=false
@@ -254,18 +301,41 @@ show_status() {
             NGINX_RUNNING=true
         fi
         
-                # 환경 정보 수집
-        echo "📊 환경 상태 정보 수집 중..."
         
-        # 현재 활성 환경 확인
+        # 현재 활성 환경 확인 (both 제거)
         if [ "$BLUE_RUNNING" = true ] && [ "$GREEN_RUNNING" = false ]; then
             ACTIVE_ENV="blue"
         elif [ "$GREEN_RUNNING" = true ] && [ "$BLUE_RUNNING" = false ]; then
             ACTIVE_ENV="green"
         elif [ "$BLUE_RUNNING" = true ] && [ "$GREEN_RUNNING" = true ]; then
-            ACTIVE_ENV="both"
+            # 두 환경이 모두 실행 중일 때는 nginx.conf의 primary_backend로 우선순위 판단
+            if [ -f nginx.conf ]; then
+                if grep -q 'set \$primary_backend "zapcut-api-blue:8000"' nginx.conf; then
+                    ACTIVE_ENV="blue"
+                elif grep -q 'set \$primary_backend "zapcut-api-green:8000"' nginx.conf; then
+                    ACTIVE_ENV="green"
+                else
+                    ACTIVE_ENV="blue"  # 기본값
+                fi
+            else
+                ACTIVE_ENV="blue"  # nginx.conf가 없으면 기본값
+            fi
         else
             ACTIVE_ENV="none"
+        fi
+        
+        # nginx.conf에서 현재 우선순위 환경 확인
+        if [ -f nginx.conf ]; then
+            if grep -q 'set \$primary_backend "zapcut-api-blue:8000"' nginx.conf; then
+                PRIMARY_ENV="blue"
+            elif grep -q 'set \$primary_backend "zapcut-api-green:8000"' nginx.conf; then
+                PRIMARY_ENV="green"
+            else
+                PRIMARY_ENV="blue"  # 기본값
+            fi
+        else
+            echo "⚠️  nginx.conf 파일이 없습니다. 기본값으로 설정합니다."
+            PRIMARY_ENV="blue"  # 기본값
         fi
 
         # Nginx 상태 확인
@@ -288,10 +358,20 @@ show_status() {
             BLUE_HEALTH="stopped"
         fi
         
-        # 블루 배포 날짜는 파일에서 읽기
-        if [ -f .blue_deployment_date ]; then
-            BLUE_DEPLOYMENT_DATE=$(cat .blue_deployment_date)
+        # 블루 환경 정보 수집
+        if [ "$BLUE_RUNNING" = true ]; then
+            BLUE_STATUS="running"
+            if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+                BLUE_HEALTH="healthy"
+            else
+                BLUE_HEALTH="unhealthy"
+            fi
+            
+            # 블루 컨테이너에서 배포 날짜 환경변수 가져오기
+            BLUE_DEPLOYMENT_DATE=$(docker exec zapcut-api-blue printenv DEPLOYMENT_DATE 2>/dev/null || echo "Unknown")
         else
+            BLUE_STATUS="stopped"
+            BLUE_HEALTH="stopped"
             BLUE_DEPLOYMENT_DATE="Unknown"
         fi
 
@@ -303,44 +383,34 @@ show_status() {
             else
                 GREEN_HEALTH="unhealthy"
             fi
+            
+            # 그린 컨테이너에서 배포 날짜 환경변수 가져오기
+            GREEN_DEPLOYMENT_DATE=$(docker exec zapcut-api-green printenv DEPLOYMENT_DATE 2>/dev/null || echo "Unknown")
         else
             GREEN_STATUS="stopped"
             GREEN_HEALTH="stopped"
-        fi
-        
-        # 그린 배포 날짜는 파일에서 읽기
-        if [ -f .green_deployment_date ]; then
-            GREEN_DEPLOYMENT_DATE=$(cat .green_deployment_date)
-        else
             GREEN_DEPLOYMENT_DATE="Unknown"
         fi
 
-        # JSON 형태로 출력
+
         echo ""
-        echo "📋 환경 상태 (JSON):"
-        cat << JSON_OUTPUT
-{
-  "timestamp": "$(date '+%Y-%m-%d %H:%M:%S')",
-  "active_environment": "$ACTIVE_ENV",
-  "nginx": {
-    "port": 8800,
-    "status": "$([ "$NGINX_RUNNING" = true ] && echo "running" || echo "stopped")",
-    "health": "$NGINX_HEALTH"
-  },
-  "blue": {
-    "port": 8000,
-    "status": "$BLUE_STATUS",
-    "health": "$BLUE_HEALTH",
-    "deployment_date": "$BLUE_DEPLOYMENT_DATE"
-  },
-  "green": {
-    "port": 8001,
-    "status": "$GREEN_STATUS",
-    "health": "$GREEN_HEALTH",
-    "deployment_date": "$GREEN_DEPLOYMENT_DATE"
-  }
-}
-JSON_OUTPUT
+        echo "🎯 현재 상태 요약:"
+        echo "=================="
+        echo "📊 활성 환경: $ACTIVE_ENV"
+        echo "🔄 Nginx 우선순위: $PRIMARY_ENV ($([ "$PRIMARY_ENV" = "blue" ] && echo "블루 → 그린" || echo "그린 → 블루") fallback)"
+        echo "🌐 Nginx: $([ "$NGINX_RUNNING" = true ] && echo "✅ 실행 중" || echo "❌ 중지됨")"
+        echo ""
+        echo "🔵 Blue 환경 (포트 8000):"
+        echo "   상태: $([ "$BLUE_RUNNING" = true ] && echo "✅ 실행 중" || echo "❌ 중지됨")"
+        echo "   헬스: $([ "$BLUE_HEALTH" = "healthy" ] && echo "✅ 정상" || echo "❌ 비정상")"
+        echo "   우선순위: $([ "$PRIMARY_ENV" = "blue" ] && echo "⭐ 1순위" || echo "🔄 2순위")"
+        echo "   배포일: $BLUE_DEPLOYMENT_DATE"
+        echo ""
+        echo "🟢 Green 환경 (포트 8001):"
+        echo "   상태: $([ "$GREEN_RUNNING" = true ] && echo "✅ 실행 중" || echo "❌ 중지됨")"
+        echo "   헬스: $([ "$GREEN_HEALTH" = "healthy" ] && echo "✅ 정상" || echo "❌ 비정상")"
+        echo "   우선순위: $([ "$PRIMARY_ENV" = "green" ] && echo "⭐ 1순위" || echo "🔄 2순위")"
+        echo "   배포일: $GREEN_DEPLOYMENT_DATE"
 EOF
 }
 
@@ -352,8 +422,9 @@ deploy_service() {
     rsync -avz --exclude='venv' --exclude='.git' --exclude='__pycache__' --progress --exclude='*.pyc' --exclude='temp' --exclude='logs' --exclude='nginx-logs' ./ root@zapcut:~/zapcut-back/
 
     # 원격 서버에서 배포 실행
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << 'DEPLOY_EOF'
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'DEPLOY_EOF'
         cd ~/zapcut-back
+        export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         
         
         # 배포 정보 설정 (SSH 세션 내에서 직접 설정)
@@ -364,22 +435,35 @@ deploy_service() {
         
         echo "  날짜: $DEPLOYMENT_DATE"
         
-        # 현재 활성 환경 확인
-        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
-            CURRENT_ENV="blue"
+        # 현재 우선순위 환경 확인하여 반대 환경으로 배포
+        if [ -f nginx.conf ] && grep -q 'set \$primary_backend "zapcut-api-blue:8000"' nginx.conf; then
+            CURRENT_PRIMARY="blue"
             NEW_ENV="green"
             NEW_PORT="8001"
-            echo "🔄 블루 → 그린 배포"
-        elif docker ps --format "table {{.Names}}" | grep -q "zapcut-api-green"; then
-            CURRENT_ENV="green"
+            echo "🔄 현재 주 환경: 블루 → 그린 배포"
+        elif [ -f nginx.conf ] && grep -q 'set \$primary_backend "zapcut-api-green:8000"' nginx.conf; then
+            CURRENT_PRIMARY="green"
             NEW_ENV="blue"
             NEW_PORT="8000"
-            echo "🔄 그린 → 블루 배포"
+            echo "🔄 현재 주 환경: 그린 → 블루 배포"
         else
-            CURRENT_ENV="none"
-            NEW_ENV="blue"
-            NEW_PORT="8000"
-            echo "🔄 최초 배포 (블루)"
+            # nginx.conf에 설정이 없으면 실행 중인 컨테이너 확인
+            if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
+                CURRENT_PRIMARY="blue"
+                NEW_ENV="green"
+                NEW_PORT="8001"
+                echo "🔄 현재 실행 환경: 블루 → 그린 배포"
+            elif docker ps --format "table {{.Names}}" | grep -q "zapcut-api-green"; then
+                CURRENT_PRIMARY="green"
+                NEW_ENV="blue"
+                NEW_PORT="8000"
+                echo "🔄 현재 실행 환경: 그린 → 블루 배포"
+            else
+                CURRENT_PRIMARY="none"
+                NEW_ENV="blue"
+                NEW_PORT="8000"
+                echo "🔄 최초 배포 (블루)"
+            fi
         fi
         
         
@@ -440,10 +524,9 @@ deploy_service() {
         echo ""
         echo "✅ 배포 완료!"
         echo "🎯 활성: $NEW_ENV (포트 $NEW_PORT)"
-        echo "🌐 직접 접근: http://$PUBLIC_IP:$NEW_PORT"
         echo ""
         
-        # Nginx 우선순위 변경
+
         echo "🔧 Nginx 우선순위를 $NEW_ENV 환경으로 변경 중..."
         
         # nginx.conf 백업
@@ -454,12 +537,10 @@ deploy_service() {
             # 블루 우선, 그린 fallback
             sed -i 's/set \$primary_backend "zapcut-api-[^"]*"/set \$primary_backend "zapcut-api-blue:8000"/g' nginx.conf
             sed -i 's/set \$fallback_backend "zapcut-api-[^"]*"/set \$fallback_backend "zapcut-api-green:8000"/g' nginx.conf
-            echo "📋 설정: 블루 우선 → 그린 fallback"
         else
             # 그린 우선, 블루 fallback
             sed -i 's/set \$primary_backend "zapcut-api-[^"]*"/set \$primary_backend "zapcut-api-green:8000"/g' nginx.conf
             sed -i 's/set \$fallback_backend "zapcut-api-[^"]*"/set \$fallback_backend "zapcut-api-blue:8000"/g' nginx.conf
-            echo "📋 설정: 그린 우선 → 블루 fallback"
         fi
         
         # Nginx 설정 테스트 및 리로드
@@ -480,10 +561,23 @@ deploy_service() {
         fi
         
         if [ "$NGINX_SUCCESS" != true ]; then
-            echo "Nginx 설정 확인이 필요합니다."
+            echo "⚠️  Nginx 설정 확인이 필요합니다."
         fi
+
+        # 디스크 공간 확인 후 이미지 정리 (10GB 이하일 때만)
+        AVAILABLE_SPACE=$(df / | awk 'NR==2 {print $4}')
+        AVAILABLE_SPACE_GB=$((AVAILABLE_SPACE / 1024 / 1024))
         
-        echo "🎯 현재 활성 환경: $NEW_ENV (포트 $NEW_PORT)"
+        echo "💾 사용 가능한 디스크 공간: ${AVAILABLE_SPACE_GB}GB"
+        
+        if [ $AVAILABLE_SPACE_GB -le 10 ]; then
+            echo "⚠️  디스크 공간이 부족합니다 (${AVAILABLE_SPACE_GB}GB). 이미지 정리를 시작합니다..."
+            docker image prune -f
+            echo "🧽 사용하지 않는 Docker 이미지 정리 완료"
+        else
+            echo "✅ 디스크 공간이 충분합니다 (${AVAILABLE_SPACE_GB}GB). 이미지 정리를 건너뜁니다."
+        fi
+
 DEPLOY_EOF
     
     if [ $? -eq 0 ]; then
@@ -499,7 +593,7 @@ DEPLOY_EOF
 stop_service() {
     echo "🛑 모든 서비스 중지 중..."
     
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut "cd ~/zapcut-back && docker-compose down"
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut "export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1; cd ~/zapcut-back && docker-compose down"
     
     if [ $? -eq 0 ]; then
         echo "✅ 모든 서비스가 중지되었습니다"
@@ -511,7 +605,7 @@ stop_service() {
 restart_service() {
     echo "🚀 블루 환경 시작 중..."
     
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut "cd ~/zapcut-back && docker-compose up -d nginx zapcut-api-blue"
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut "export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1; cd ~/zapcut-back && docker-compose up -d nginx zapcut-api-blue"
     
     if [ $? -eq 0 ]; then
         echo "✅ 블루 환경이 시작되었습니다"
@@ -527,7 +621,8 @@ setup() {
     echo "🚀 Setting up Ubuntu EC2 remotely..."
     
     # 원격으로 설치 스크립트 실행 ( 등록 되어 있어야 함 /etc/hosts )
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << 'EOF'
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'EOF'
+        export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         echo "🔄 Updating system..."
         sudo apt update -y
         sudo apt upgrade -y
@@ -618,8 +713,9 @@ EOF
     rsync -avz --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' ./ root@zapcut:~/zapcut-back/
     
     # 원격으로 프로젝트 설정
-    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no root@zapcut << 'EOF'
+    ssh -q -o LogLevel=ERROR -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o UpdateHostKeys=no root@zapcut << 'EOF'
         cd ~/zapcut-back
+        export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         
         # 스크립트 실행 권한 부여
         chmod +x deploy.sh
@@ -667,8 +763,12 @@ case $1 in
         show_usage
         ;;
     *)
-        echo "❌ Unknown command: $COMMAND"
-        show_usage
-        exit 1
+        if [ -z "$1" ]; then
+            deploy_service
+        else
+            echo "❌ Unknown command: $1"
+            show_usage
+            exit 1
+        fi
         ;;
 esac 
