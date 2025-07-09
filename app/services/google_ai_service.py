@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
-from app.models.schemas import TTSVoiceModel, SceneWithData, CaptionInfo
+from app.models.schemas import ShortsSyncVoiceAlterRequest, TTSVoiceModel, Scene, CaptionInfo
 from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
@@ -27,15 +27,18 @@ class SimpleCaptionInfo(BaseModel):
     end_time: float
 
 
-class SimpleScene(BaseModel):
-    duration: float
-    captions: list[SimpleCaptionInfo]
+class GoogleScheme(BaseModel):
+    title: str
+    scenes: list[Scene]
+
+
+class SimpleSceneAlter(BaseModel):
+    text: str
     description: str
 
 
-class GoogleScheme(BaseModel):
-    title: str
-    scenes: list[SimpleScene]
+class GoogleSchemeAlter(BaseModel):
+    scenes: list[Scene]
 
 
 class GoogleAIService:
@@ -46,11 +49,42 @@ class GoogleAIService:
         # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
         self.temp_dir = get_temp_dir("google_ai_service")
 
-    def __del__(self):
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            import shutil
+    async def generate_shorts_script_string(
+        self,
+        duration: str,
+        user_prompt: str,
+        page_image_url: str | None = None,
+    ):
+        system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
+        Your task is to create engaging content for a YouTube Shorts video.
+        Focus on creating viral content that can attract viewers' attention.
+        If a photo is uploaded together, extract detailed page information based on that photo and be sure to include it in the information.
+        Also, if the page is a sales page for a specific product, analyze the product and be sure to include that information as well.
 
-            shutil.rmtree(self.temp_dir)
+        There must be at least 5 scenes in total.
+        this script is {duration} long. 
+        At least each scene should have a narration of at least 40 characters.
+        Write in a friendly, conversational tone in Korean.
+        And the scene description should only be the scene description, excluding the music description.
+        """
+        content = [user_prompt]
+        if page_image_url:
+            image_path = await self.io_processor.download_file(page_image_url)
+            with open(image_path, "rb") as image_file:
+                image_bytes = image_file.read()
+            content.insert(0, genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
+
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=content,
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                response_schema=list[SimpleSceneAlter],
+            ),
+        )
+
+        return json.loads(response.text)
 
     async def generate_shorts_scripts(
         self,
@@ -183,9 +217,9 @@ class GoogleAIService:
                     return (download_url, image)
 
             except Exception as e:
-                logging.warning(f"Image generation attempt {attempt + 1} failed: {str(e)}")
+                logging.warning(str(e))
                 if attempt == max_retries - 1:
-                    raise ServerException(f"이미지 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
+                    raise ServerException(str(e))
                 await asyncio.sleep(2 * (attempt + 1))  # 점진적 백오프
 
     async def genereate_text_to_speech(
@@ -238,7 +272,87 @@ class GoogleAIService:
                     raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
                 await asyncio.sleep(1)
 
-    async def sync_scene_voice(self, request: list[SceneWithData]) -> str:
+    async def sync_scene_voice_alter(self, request: ShortsSyncVoiceAlterRequest) -> str:
+        audio_path = await self.io_processor.download_file(request.audio_url)
+
+        audio_file = self.client.files.upload(file=audio_path)
+
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                f"""
+                Please analyze the provided audio and create subtitle timing for the following texts.
+                Listen to the audio and determine the appropriate start_time and end_time for each text based on when they are spoken.
+                Return the captions with proper timing that matches the audio.
+                Please adjust the timing in 0.1 second increments.
+                
+                Please break down each scene into fine-grained subtitle format and synchronize them.
+                If possible, try to make each scene have at least 5 subtitles in the list.
+                And the duration is relative value.
+                All caption start and end times must not overlap, and must have at least 0.1 second gap.
+                each caption should be no more than 20 characters in Korean.
+                
+                Caption texts in order:
+                {json.dumps([scene.text for scene in request.scenes], ensure_ascii=False)}
+                """,
+                audio_file,
+            ],
+            config=genai.types.GenerateContentConfig(
+                response_schema=list[Scene],
+                response_mime_type="application/json",
+            ),
+        )
+
+        adjusted_scenes_data = json.loads(response.text)
+
+        print(adjusted_scenes_data)
+        # 딕셔너리를 SimpleScene 객체로 변환
+        adjusted_scenes = []
+        for scene_data in adjusted_scenes_data:
+            scene = Scene(**scene_data)
+            adjusted_scenes.append(scene)
+
+        # 각 씬의 지속시간에 맞게 오디오를 서브클립하고 voice_url 설정
+        from pydub import AudioSegment
+        import os
+        from io import BytesIO
+
+        # 씬이 하나만 있는 경우 원본 오디오를 바로 사용
+        if len(adjusted_scenes) == 1:
+            adjusted_scenes[0].voice_url = request.audio_url
+        else:
+            # 여러 씬이 있는 경우 서브클립 진행
+            # 원본 오디오 로드
+            audio = AudioSegment.from_file(audio_path)
+
+            # 각 씬에 대해 오디오 서브클립 생성
+            for i, scene in enumerate(adjusted_scenes):
+                # 씬의 시작 시간과 끝 시간 계산
+                start_time = 0
+                for j in range(i):
+                    start_time += adjusted_scenes[j].duration
+
+                end_time = start_time + scene.duration
+
+                # 시간을 밀리초로 변환
+                start_ms = int(start_time * 1000)
+                end_ms = int(end_time * 1000)
+
+                # 오디오 서브클립 생성
+                scene_audio = audio[start_ms:end_ms]
+
+                # BytesIO로 변환하여 S3 업로드
+                audio_buffer = BytesIO()
+                scene_audio.export(audio_buffer, format="mp3")
+                audio_buffer.seek(0)
+
+                # S3에 업로드하고 URL 반환
+                voice_url = await self.io_processor.upload_file_s3(file_data=audio_buffer, ext="mp3")
+                scene.voice_url = voice_url
+
+        return adjusted_scenes
+
+    async def sync_scene_voice(self, request: list[Scene]) -> str:
         if any(scene.voice_url is None for scene in request):
             raise ServerException("씬에 보이스 URL이 없습니다.")
 

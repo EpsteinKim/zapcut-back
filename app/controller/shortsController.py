@@ -2,11 +2,11 @@ from fastapi import APIRouter, Query, Response, Depends
 from app.models.schemas import (
     Response,
     ShortsScriptRequest,
+    ShortsSyncVoiceAlterRequest,
     ShortsVideoRequest,
     ShortsVoiceRequest,
-    SceneWithData,
-    CaptionInfo,
     ShortsImageRequest,
+    Scene,
 )
 from fastapi import Depends
 from app.core.dependencies import get_services, Services
@@ -35,19 +35,31 @@ async def get_shorts_scripts(request: ShortsScriptRequest, services: Services = 
     if request.page_image_url:
         video_script = await services.google_ai.generate_shorts_scripts(
             duration=f"{request.duration}s",
-            title=request.title,
-            description=request.description,
+            user_prompt=request.user_prompt,
             page_image_url=request.page_image_url,
-            additional_prompt=request.additional_prompt,
         )
     else:
         video_script = await services.google_ai.generate_shorts_scripts(
             duration=f"{request.duration}s",
-            title=request.title,
-            description=request.description,
-            additional_prompt=request.additional_prompt,
+            user_prompt=request.user_prompt,
         )
 
+    return Response.with_data(video_script)
+
+
+@router.post("/script/string")
+async def get_shorts_script_string(request: ShortsScriptRequest, services: Services = Depends(get_services)):
+    if request.page_image_url:
+        video_script = await services.google_ai.generate_shorts_script_string(
+            duration=f"{request.duration}s",
+            user_prompt=request.user_prompt,
+            page_image_url=request.page_image_url,
+        )
+    else:
+        video_script = await services.google_ai.generate_shorts_script_string(
+            duration=f"{request.duration}s",
+            user_prompt=request.user_prompt,
+        )
     return Response.with_data(video_script)
 
 
@@ -70,13 +82,19 @@ async def get_shorts_voice(request: ShortsVoiceRequest, services: Services = Dep
         duration=request.duration,
         voice_model=request.voice_model,
         voice_temperature=request.voice_temperature,
-        speed_multiplier=1.2,
+        speed_multiplier=1.0,
     )
     download_url = await io_processor.upload_file_s3(file_path=result["output_path"], ext="mp3")
     return Response.with_data(download_url)
 
 
+@router.post("/voice/sync/alter")
+async def get_shorts_voice_alter(request: ShortsSyncVoiceAlterRequest, services: Services = Depends(get_services)):
+    result = await services.google_ai.sync_scene_voice_alter(request)
+    return Response.with_data(result)
+
+
 @router.post("/voice/sync")
-async def sync_shorts_voice(request: list[SceneWithData], services: Services = Depends(get_services)):
+async def sync_shorts_voice(request: list[Scene], services: Services = Depends(get_services)):
     sync_scene = await services.google_ai.sync_scene_voice(request)
     return Response.with_data(sync_scene)

@@ -22,12 +22,6 @@ class TextProcessor:
 
         self.temp_dir = get_temp_dir("text_processor")
 
-    def __del__(self):
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            import shutil
-
-            shutil.rmtree(self.temp_dir)
-
     def create_text_clip(
         self,
         caption: CaptionInfo,

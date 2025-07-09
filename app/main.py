@@ -39,7 +39,7 @@ app.include_router(crawlingController.router, prefix="/api/v1", tags=["crawlingC
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-cleanup_handler = initialize_cleanup_handler(TEMP_DIR)
+cleanup_handler = initialize_cleanup_handler(TEMP_DIR, auto_cleanup_interval=3600, max_file_age_hours=24)
 logger.info("🚀 ZAPCUT API 서비스 시작")
 
 

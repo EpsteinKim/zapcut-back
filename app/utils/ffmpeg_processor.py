@@ -566,13 +566,3 @@ class FFmpegProcessor:
             result.stdout = ""
             result.stderr = str(e)
             return result
-
-    def cleanup(self):
-        """임시 파일 정리"""
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            import shutil
-
-            shutil.rmtree(self.temp_dir)
-
-    def __del__(self):
-        self.cleanup()

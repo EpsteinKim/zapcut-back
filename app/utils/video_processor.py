@@ -39,9 +39,3 @@ class VideoProcessor:
         output_path = os.path.join(self.temp_dir, f"shorts_video_{uuid.uuid4()}.mp4")
         video.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=4, fps=24, audio_fps=24000)
         return output_path
-
-    def __del__(self):
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            import shutil
-
-            shutil.rmtree(self.temp_dir)

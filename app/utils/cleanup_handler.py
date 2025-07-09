@@ -5,7 +5,9 @@ import sys
 import atexit
 import threading
 import logging
+import time
 from typing import Optional
+from app.utils.os_processor import cleanup_old_files
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,16 @@ logger = logging.getLogger(__name__)
 class CleanupHandler:
     """서비스 종료 시 리소스 정리를 담당하는 클래스"""
 
-    def __init__(self, temp_dir: str):
+    def __init__(self, temp_dir: str, auto_cleanup_interval: int = 3600, max_file_age_hours: int = 1):
         self.temp_dir = temp_dir
+        self.auto_cleanup_interval = auto_cleanup_interval  # 자동 정리 간격 (초)
+        self.max_file_age_hours = max_file_age_hours  # 최대 파일 보존 시간 (시간)
         self._cleanup_done = False
         self._cleanup_lock = threading.Lock()
+        self._auto_cleanup_thread = None
+        self._stop_auto_cleanup = threading.Event()
         self._setup_handlers()
+        self._start_auto_cleanup()
 
     def _setup_handlers(self):
         """시그널 핸들러와 atexit 핸들러를 설정"""
@@ -32,8 +39,37 @@ class CleanupHandler:
 
         logger.info("🧹 CleanupHandler 초기화 완료")
 
+    def _start_auto_cleanup(self):
+        self._auto_cleanup_thread = threading.Thread(
+            target=self._auto_cleanup_worker, daemon=True, name="AutoCleanupWorker"
+        )
+        self._auto_cleanup_thread.start()
+        logger.info(
+            f"🔄 자동 정리 스레드 시작 (간격: {self.auto_cleanup_interval}초, 최대 보존: {self.max_file_age_hours}시간)"
+        )
+
+    def _auto_cleanup_worker(self):
+        while not self._stop_auto_cleanup.is_set():
+            try:
+                if self._stop_auto_cleanup.wait(self.auto_cleanup_interval):
+                    break
+
+                logger.info(f"🧹 자동 정리 실행 중... (최대 보존: {self.max_file_age_hours}시간)")
+                cleanup_old_files(self.temp_dir, self.max_file_age_hours)
+                logger.info("✅ 자동 정리 완료")
+
+            except Exception as e:
+                logger.error(f"❌ 자동 정리 중 오류 발생: {str(e)}")
+                time.sleep(60)
+
+    def stop_auto_cleanup(self):
+        self._stop_auto_cleanup.set()
+        if self._auto_cleanup_thread and self._auto_cleanup_thread.is_alive():
+            self._auto_cleanup_thread.join(timeout=5)
+            logger.info("🛑 자동 정리 스레드 중지됨")
+
     def cleanup_temp_directory(self):
-        """TEMP_DIR의 모든 파일과 디렉토리를 정리"""
+        """TEMP_DIR의 모든 파일과 디렉토리를 정리 (폴더 자체는 유지)"""
         with self._cleanup_lock:
             if self._cleanup_done:
                 return
@@ -47,23 +83,36 @@ class CleanupHandler:
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        # 읽기 전용 파일들도 삭제할 수 있도록 권한 변경
-                        for root, dirs, files in os.walk(self.temp_dir, topdown=False):
-                            for file in files:
-                                file_path = os.path.join(root, file)
-                                try:
-                                    os.chmod(file_path, 0o777)
-                                except:
-                                    pass
-                            for dir in dirs:
-                                dir_path = os.path.join(root, dir)
-                                try:
-                                    os.chmod(dir_path, 0o777)
-                                except:
-                                    pass
+                        # temp_dir 내부의 모든 항목을 삭제하되, temp_dir 자체는 유지
+                        for item in os.listdir(self.temp_dir):
+                            item_path = os.path.join(self.temp_dir, item)
 
-                        shutil.rmtree(self.temp_dir, ignore_errors=True)
-                        logger.info("✅ TEMP_DIR 정리 완료")
+                            # 읽기 전용 파일들도 삭제할 수 있도록 권한 변경
+                            if os.path.isfile(item_path):
+                                try:
+                                    os.chmod(item_path, 0o777)
+                                    os.remove(item_path)
+                                except Exception as e:
+                                    logger.warning(f"⚠️ 파일 삭제 실패: {item_path} - {str(e)}")
+                            elif os.path.isdir(item_path):
+                                # 디렉토리 내부의 모든 파일에 대해 권한 변경
+                                for root, dirs, files in os.walk(item_path, topdown=False):
+                                    for file in files:
+                                        file_path = os.path.join(root, file)
+                                        try:
+                                            os.chmod(file_path, 0o777)
+                                        except:
+                                            pass
+                                    for dir in dirs:
+                                        dir_path = os.path.join(root, dir)
+                                        try:
+                                            os.chmod(dir_path, 0o777)
+                                        except:
+                                            pass
+
+                                shutil.rmtree(item_path, ignore_errors=True)
+
+                        logger.info("✅ TEMP_DIR 정리 완료 (폴더 유지)")
                         break
                     except Exception as e:
                         if attempt < max_retries - 1:
@@ -88,6 +137,7 @@ class CleanupHandler:
         }.get(signum, f"Signal {signum}")
 
         logger.info(f"🛑 서비스 종료 신호 수신: {signal_name}")
+        self.stop_auto_cleanup()  # 자동 정리 스레드 중지
         self.cleanup_temp_directory()
         sys.exit(0)
 
@@ -101,15 +151,20 @@ class CleanupHandler:
         logger.info("🔧 수동 정리 실행")
         self.cleanup_temp_directory()
 
+    def manual_cleanup_old_files(self):
+        logger.info(f"🔧 수동 오래된 파일 정리 실행 (최대 보존: {self.max_file_age_hours}시간)")
+        cleanup_old_files(self.temp_dir, self.max_file_age_hours)
+
 
 # 전역 인스턴스 (필요시 사용)
 _cleanup_handler: Optional[CleanupHandler] = None
 
 
-def initialize_cleanup_handler(temp_dir: str) -> CleanupHandler:
-    """CleanupHandler를 초기화하고 반환"""
+def initialize_cleanup_handler(
+    temp_dir: str, auto_cleanup_interval: int = 3600, max_file_age_hours: int = 24
+) -> CleanupHandler:
     global _cleanup_handler
-    _cleanup_handler = CleanupHandler(temp_dir)
+    _cleanup_handler = CleanupHandler(temp_dir, auto_cleanup_interval, max_file_age_hours)
     return _cleanup_handler
 
 
@@ -119,8 +174,14 @@ def get_cleanup_handler() -> Optional[CleanupHandler]:
 
 
 def manual_cleanup():
-    """전역 인스턴스를 통한 수동 정리"""
     if _cleanup_handler:
         _cleanup_handler.manual_cleanup()
+    else:
+        logger.warning("⚠️ CleanupHandler가 초기화되지 않았습니다")
+
+
+def manual_cleanup_old_files():
+    if _cleanup_handler:
+        _cleanup_handler.manual_cleanup_old_files()
     else:
         logger.warning("⚠️ CleanupHandler가 초기화되지 않았습니다")

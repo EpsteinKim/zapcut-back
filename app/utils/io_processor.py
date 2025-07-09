@@ -42,6 +42,7 @@ class IOProcessor:
                         file_extension = self._get_extension_from_content_type(content_type)
 
                     temp_file_path = os.path.join(self.temp_dir, f"temp_file_{uuid.uuid4()}{file_extension}")
+                    print(f"🔧 파일 다운로드 경로: {temp_file_path}")
 
                     with open(temp_file_path, "wb") as f:
                         downloaded_size = 0
@@ -186,13 +187,3 @@ class IOProcessor:
             return False
 
         return True
-
-    def __del__(self):
-        try:
-            if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-                import shutil
-
-                shutil.rmtree(self.temp_dir)
-        except (ImportError, AttributeError):
-            # Python 종료 시 import 에러 무시
-            pass

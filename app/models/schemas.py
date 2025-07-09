@@ -145,23 +145,24 @@ class CaptionInfo(BaseModel):
 
 
 class Scene(BaseModel):
-    duration: float
-    captions: List[CaptionInfo]
+    text: str | None = None  # 처음에 전체 싱크에서만 씀
+    duration: float | None = None
+    captions: List[CaptionInfo] | None = None
     description: str
-
-
-class SceneWithData(Scene):
     video_url: str | None = None
     image_url: str | None = None
     voice_url: str | None = None
 
 
+class SceneAlter(BaseModel):
+    text: str
+    description: str
+
+
 class ShortsScriptRequest(BaseModel):
     page_image_url: str | None = None
-    description: str | None = None
-    title: str | None = None
+    user_prompt: str | None = None
     duration: int
-    additional_prompt: str | None = None
 
 
 class ShortsImageRequest(BaseModel):
@@ -175,8 +176,13 @@ class ShortsVoiceRequest(BaseModel):
     voice_temperature: float = 0.3
 
 
+class ShortsSyncVoiceAlterRequest(BaseModel):
+    scenes: list[Scene]
+    audio_url: str
+
+
 class ShortsVideoRequest(BaseModel):
-    scenes: List[SceneWithData]
+    scenes: List[Scene]
     bgm_id: BGMTypeModel | None = None
     custom_bgm_url: str | None = None
     music_volume: float = 0.4

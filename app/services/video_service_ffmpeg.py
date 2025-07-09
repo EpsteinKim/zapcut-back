@@ -25,13 +25,6 @@ class VideoServiceFFmpeg:
         self.ffmpeg_processor = FFmpegProcessor(self.video_width, self.video_height)
         self.io_processor = IOProcessor()
 
-    def __del__(self):
-        auto_cleanup = os.getenv("AUTO_CLEANUP_TEMP", "true").lower() == "true"
-        if auto_cleanup and hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            import shutil
-
-            shutil.rmtree(self.temp_dir)
-
     def _is_gif_file(self, file_path: str) -> bool:
         """GIF 파일인지 확인"""
         if file_path.lower().endswith(".gif"):

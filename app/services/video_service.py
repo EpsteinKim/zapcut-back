@@ -7,17 +7,13 @@ from moviepy import (
     ImageClip,
 )
 from moviepy.video import fx as vfx
-from app.models.schemas import ShortsVideoRequest, SceneWithData, BGMType
+from app.models.schemas import ShortsVideoRequest, BGMType, Scene
 from app.core.service_locator import get_google_ai_service
 from app.utils.video_processor import VideoProcessor
 from app.utils.audio_processor import AudioProcessor
 from app.utils.text_processor import TextProcessor
 from app.utils.io_processor import IOProcessor
-import tempfile
-import os
-import shutil
 from app.exceptions.http_exceptions import ServerException
-from dataclasses import dataclass
 from io import BytesIO
 from PIL import Image
 import numpy as np
@@ -26,32 +22,19 @@ import asyncio
 import logging
 import uuid
 from app.core.config import TEMP_DIR
-
-
-@dataclass
-class Processors:
-    video: VideoProcessor
-    audio: AudioProcessor
-    text: TextProcessor
-    IO: IOProcessor
+from app.utils.os_processor import get_temp_dir
+import os
 
 
 class VideoService:
     def __init__(self):
         self.video_width = 1080
         self.video_height = 1920
-        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
-        self.temp_dir = os.path.join(TEMP_DIR, f"video_session_{uuid.uuid4()}")
-        self.processors = Processors(
-            video=VideoProcessor(self.video_width, self.video_height),
-            audio=AudioProcessor(),
-            text=TextProcessor(self.video_width, self.video_height),
-            IO=IOProcessor(),
-        )
-
-    def __del__(self):
-        if hasattr(self, "temp_dir") and os.path.exists(self.temp_dir):
-            shutil.rmtree(self.temp_dir)
+        self.temp_dir = get_temp_dir("video_service")
+        self.video_processor = VideoProcessor(self.video_width, self.video_height)
+        self.audio_processor = AudioProcessor()
+        self.text_processor = TextProcessor(self.video_width, self.video_height)
+        self.io_processor = IOProcessor()
 
     def _is_gif_file(self, file_path: str) -> bool:
         """GIF 파일인지 확인"""
@@ -75,11 +58,11 @@ class VideoService:
     async def _process_scene_media(self, scene, google_ai_service):
         """단일 scene의 미디어 처리를 담당하는 헬퍼 메서드"""
         if scene.video_url is not None:
-            video_path = await self.processors.IO.download_file(scene.video_url)
+            video_path = await self.io_processor.download_file(scene.video_url)
             target_clip = VideoFileClip(video_path)
             return target_clip, None
         elif scene.image_url is not None:
-            image_path = await self.processors.IO.download_file(scene.image_url)
+            image_path = await self.io_processor.download_file(scene.image_url)
 
             # GIF 파일인지 확인하고 적절히 처리
             if self._is_gif_file(image_path):
@@ -105,7 +88,7 @@ class VideoService:
     async def _process_scene_voice(self, scene):
         """단일 scene의 음성 처리를 담당하는 헬퍼 메서드"""
         if scene.voice_url:
-            voice_path = await self.processors.IO.download_file(scene.voice_url)
+            voice_path = await self.io_processor.download_file(scene.voice_url)
             audio_clip = AudioFileClip(voice_path)
             return audio_clip
         return None
@@ -151,7 +134,7 @@ class VideoService:
 
         background_music = None
         if request.bgm_id == BGMType.CUSTOM and request.custom_bgm_url:
-            music_path = await self.processors.IO.download_file(request.custom_bgm_url)
+            music_path = await self.io_processor.download_file(request.custom_bgm_url)
             background_music = AudioFileClip(music_path)
         elif request.bgm_id != BGMType.NONE:
             music_path = BGMType.get_file_path(request.bgm_id)
@@ -219,14 +202,14 @@ class VideoService:
             if scene.captions:
                 for caption in scene.captions:
                     text_clips.extend(
-                        self.processors.text.create_text_clip(
+                        self.text_processor.create_text_clip(
                             caption=caption,
                             current_time=current_time,
                         )
                     )
                     if caption.sound_effect is not None:
                         audio_clips.append(
-                            self.processors.audio.create_sound_effect_clip(
+                            self.audio_processor.create_sound_effect_clip(
                                 current_time + caption.start_time, caption.sound_effect
                             )
                         )
@@ -241,14 +224,14 @@ class VideoService:
 
         final_video_clip = CompositeVideoClip(video_clips + text_clips)
         final_video_clip = final_video_clip.with_audio(final_audio_clip).with_duration(total_duration)
-        output_path = self.processors.video.save_video(final_video_clip)
+        output_path = self.video_processor.save_video(final_video_clip)
 
         with open(output_path, "rb") as f:
             video_bytes = f.read()
         video_buffer = BytesIO(video_bytes)
 
         try:
-            download_url = await self.processors.IO.upload_file_s3(file_data=video_buffer, ext="mp4")
+            download_url = await self.io_processor.upload_file_s3(file_data=video_buffer, ext="mp4")
 
             for clip in video_clips:
                 clip.close()
@@ -260,6 +243,10 @@ class VideoService:
             final_video_clip.close()
             final_audio_clip.close()
             background.close()
+            if os.path.exists(output_path):
+                os.remove(output_path)
+            if music_path and os.path.exists(music_path):
+                os.remove(music_path)
 
             return download_url
         except Exception as e:
