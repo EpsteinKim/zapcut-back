@@ -131,7 +131,7 @@ class CrawlingService:
             }
 
             # 🔧 수정: requests.post 대신 httpx.AsyncClient 사용
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 response = await client.post("https://api.brightdata.com/request", json=data, headers=headers)
 
             soup = BeautifulSoup(response.text, "html.parser")

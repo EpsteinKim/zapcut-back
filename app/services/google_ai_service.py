@@ -18,12 +18,6 @@ from pydub import AudioSegment
 from app.utils.os_processor import get_temp_dir
 
 
-class SimpleCaptionInfo(BaseModel):
-    text: str
-    start_time: float
-    end_time: float
-
-
 class GoogleScheme(BaseModel):
     title: str
     scenes: list[Scene]
@@ -268,6 +262,11 @@ class GoogleAIService:
                 await asyncio.sleep(1)
 
     async def make_synced_scene(self, request: ShortsMakeSyncedSceneRequest) -> str:
+        class SimpleScene(BaseModel):
+            duration: float
+            captions: list[CaptionInfo]
+            description: str
+
         audio_path = await self.io_processor.download_file(request.audio_url)
 
         audio_file = self.client.files.upload(file=audio_path)
@@ -282,25 +281,59 @@ class GoogleAIService:
                 Please adjust the timing in 0.1 second increments.
                 
                 Please break down each scene into fine-grained subtitle format and synchronize them.
-                If possible, try to make each scene have at least 5 subtitles in the list.
-                And the duration is relative value.
+                If possible, try to make each scene have at least 4 subtitles in the list.
                 All caption start and end times must not overlap, and must have at least 0.1 second gap.
                 each caption should be no more than 20 characters in Korean.
 
-                And the caption start and end times are relative values within the scene duration.
+                caption start and end times are relative values within the scene duration.
+                duration is must be the sum of the caption durations relative to the audio duration.
+                caption is must be written in a way that is easy to read in a short-form video.
+                (MUST) total duration is must be longer than the audio duration.
+                Each scene must have a duration, and this time is a relative value.
+
                 
+                like this: {{[
+                    {{
+                        "duration": 2.0,
+                        "captions": [
+                            {{
+                                "text": "Hello",
+                                "start_time": 0.0,
+                                "end_time": 1.0
+                            }},
+                            {{
+                                "text": "Hello",
+                                "start_time": 1.0,
+                                "end_time": 2.0
+                            }},
+                    }},
+                    {{
+                        "duration": 2.0,  # (Actually between 2 and 4 seconds)
+                        "captions": [
+                            {{
+                                "text": "Hello",
+                                "start_time": 0.0,
+                                "end_time": 2.0  # (This is also a relative time within the duration)
+                            }},
+                        ]
+                    }}
+                }}
+
+
                 Caption texts in order:
                 {json.dumps([scene.text for scene in request.scenes], ensure_ascii=False)}
                 """,
                 audio_file,
             ],
             config=genai.types.GenerateContentConfig(
-                response_schema=list[Scene],
+                response_schema=list[SimpleScene],
                 response_mime_type="application/json",
             ),
         )
 
         adjusted_scenes_data = json.loads(response.text)
+
+        print(adjusted_scenes_data)
 
         # 딕셔너리를 Scene 객체로 변환
         adjusted_scenes = []
@@ -319,30 +352,36 @@ class GoogleAIService:
             audio = AudioSegment.from_file(audio_path)
 
             # 각 씬에 대해 오디오 서브클립 생성
-            for i, scene in enumerate(adjusted_scenes):
-                # 씬의 시작 시간과 끝 시간 계산
-                start_time = 0
-                for j in range(i):
-                    start_time += adjusted_scenes[j].duration
+        for i, scene in enumerate(adjusted_scenes):
+            # duration이 None인 경우 마지막 자막의 끝나는 시간으로 설정
+            if scene.duration is None:
+                scene.duration = scene.captions[-1].end_time
 
-                print(start_time, scene.duration)
-                end_time = start_time + scene.duration
+            # 씬의 시작 시간과 끝 시간 계산
+            start_time = 0
+            for j in range(i):
+                if adjusted_scenes[j].duration is None:
+                    adjusted_scenes[j].duration = adjusted_scenes[j].captions[-1].end_time
+                start_time += adjusted_scenes[j].duration
 
-                # 시간을 밀리초로 변환
-                start_ms = int(start_time * 1000)
-                end_ms = int(end_time * 1000)
+            print(start_time, scene.duration)
+            end_time = start_time + scene.duration
 
-                # 오디오 서브클립 생성
-                scene_audio = audio[start_ms:end_ms]
+            # 시간을 밀리초로 변환
+            start_ms = int(start_time * 1000)
+            end_ms = int(end_time * 1000)
 
-                # BytesIO로 변환하여 S3 업로드
-                audio_buffer = BytesIO()
-                scene_audio.export(audio_buffer, format="mp3")
-                audio_buffer.seek(0)
+            # 오디오 서브클립 생성
+            scene_audio = audio[start_ms:end_ms]
 
-                # S3에 업로드하고 URL 반환
-                voice_url = await self.io_processor.upload_file_s3(file_data=audio_buffer, ext="mp3")
-                scene.voice_url = voice_url
+            # BytesIO로 변환하여 S3 업로드
+            audio_buffer = BytesIO()
+            scene_audio.export(audio_buffer, format="mp3")
+            audio_buffer.seek(0)
+
+            # S3에 업로드하고 URL 반환
+            voice_url = await self.io_processor.upload_file_s3(file_data=audio_buffer, ext="mp3")
+            scene.voice_url = voice_url
 
         return adjusted_scenes
 
@@ -415,7 +454,7 @@ class GoogleAIService:
                 audio_file,
             ],
             config=genai.types.GenerateContentConfig(
-                response_schema=list[SimpleCaptionInfo],
+                response_schema=list[CaptionInfo],
                 response_mime_type="application/json",
             ),
         )
