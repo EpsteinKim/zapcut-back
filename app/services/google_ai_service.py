@@ -1,20 +1,17 @@
 import json
-import re
-import base64
-import shutil
-import numpy as np
 import os
 import uuid
-import tempfile
 import asyncio
 import logging
 from io import BytesIO
 from google import genai
 from pydantic import BaseModel
+from pydub import AudioSegment
+
 
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
-from app.models.schemas import ShortsSyncVoiceAlterRequest, TTSVoiceModel, Scene, CaptionInfo
+from app.models.schemas import ShortsMakeSyncedSceneRequest, TTSVoiceModel, Scene, CaptionInfo
 from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
@@ -63,7 +60,7 @@ class GoogleAIService:
 
         There must be at least 5 scenes in total.
         this script is {duration} long. 
-        At least each scene should have a narration of at least 40 characters.
+        At least each scene should have a narration of at least 10 characters.
         Write in a friendly, conversational tone in Korean.
         And the scene description should only be the scene description, excluding the music description.
         """
@@ -187,8 +184,6 @@ class GoogleAIService:
     async def generate_shorts_image(self, user_prompt: str, max_retries=3):
         translated_prompt = self.translate(user_prompt, "English")
 
-        print(translated_prompt)
-
         translated_prompt += f"""
             - must not include Children appearing in the content
             - must not include Content that may appear violent
@@ -272,7 +267,7 @@ class GoogleAIService:
                     raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
                 await asyncio.sleep(1)
 
-    async def sync_scene_voice_alter(self, request: ShortsSyncVoiceAlterRequest) -> str:
+    async def make_synced_scene(self, request: ShortsMakeSyncedSceneRequest) -> str:
         audio_path = await self.io_processor.download_file(request.audio_url)
 
         audio_file = self.client.files.upload(file=audio_path)
@@ -291,6 +286,8 @@ class GoogleAIService:
                 And the duration is relative value.
                 All caption start and end times must not overlap, and must have at least 0.1 second gap.
                 each caption should be no more than 20 characters in Korean.
+
+                And the caption start and end times are relative values within the scene duration.
                 
                 Caption texts in order:
                 {json.dumps([scene.text for scene in request.scenes], ensure_ascii=False)}
@@ -305,17 +302,13 @@ class GoogleAIService:
 
         adjusted_scenes_data = json.loads(response.text)
 
-        print(adjusted_scenes_data)
-        # 딕셔너리를 SimpleScene 객체로 변환
+        # 딕셔너리를 Scene 객체로 변환
         adjusted_scenes = []
         for scene_data in adjusted_scenes_data:
             scene = Scene(**scene_data)
             adjusted_scenes.append(scene)
 
         # 각 씬의 지속시간에 맞게 오디오를 서브클립하고 voice_url 설정
-        from pydub import AudioSegment
-        import os
-        from io import BytesIO
 
         # 씬이 하나만 있는 경우 원본 오디오를 바로 사용
         if len(adjusted_scenes) == 1:
@@ -332,6 +325,7 @@ class GoogleAIService:
                 for j in range(i):
                     start_time += adjusted_scenes[j].duration
 
+                print(start_time, scene.duration)
                 end_time = start_time + scene.duration
 
                 # 시간을 밀리초로 변환

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Query, Response, Depends
 from app.models.schemas import (
     Response,
     ShortsScriptRequest,
-    ShortsSyncVoiceAlterRequest,
+    ShortsMakeSyncedSceneRequest,
     ShortsVideoRequest,
     ShortsVoiceRequest,
     ShortsImageRequest,
@@ -20,7 +20,7 @@ io_processor = IOProcessor()
 
 @router.get("/test")
 async def test(url: str, services: Services = Depends(get_services)):
-    content = services.crawling.crawl_website(url)
+    content = await services.crawling.crawl_website(url)
     return Response.with_data(content)
 
 
@@ -88,9 +88,9 @@ async def get_shorts_voice(request: ShortsVoiceRequest, services: Services = Dep
     return Response.with_data(download_url)
 
 
-@router.post("/voice/sync/alter")
-async def get_shorts_voice_alter(request: ShortsSyncVoiceAlterRequest, services: Services = Depends(get_services)):
-    result = await services.google_ai.sync_scene_voice_alter(request)
+@router.post("/synced-scene")
+async def make_synced_scene(request: ShortsMakeSyncedSceneRequest, services: Services = Depends(get_services)):
+    result = await services.google_ai.make_synced_scene(request)
     return Response.with_data(result)
 
 

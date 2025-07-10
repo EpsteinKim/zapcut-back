@@ -176,7 +176,7 @@ class ShortsVoiceRequest(BaseModel):
     voice_temperature: float = 0.3
 
 
-class ShortsSyncVoiceAlterRequest(BaseModel):
+class ShortsMakeSyncedSceneRequest(BaseModel):
     scenes: list[Scene]
     audio_url: str
 

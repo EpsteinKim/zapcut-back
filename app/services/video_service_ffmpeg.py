@@ -8,7 +8,7 @@ from PIL import Image
 import numpy as np
 import mimetypes
 
-from app.models.schemas import ShortsVideoRequest, SceneWithData, BGMType
+from app.models.schemas import ShortsVideoRequest, Scene, BGMType
 from app.core.service_locator import get_google_ai_service
 from app.utils.ffmpeg_processor import FFmpegProcessor
 from app.utils.io_processor import IOProcessor
@@ -128,7 +128,7 @@ class VideoServiceFFmpeg:
 
         return adjusted_music_path
 
-    async def _add_text_overlays_to_video(self, video_path: str, scenes: List[SceneWithData]) -> str:
+    async def _add_text_overlays_to_video(self, video_path: str, scenes: List[Scene]) -> str:
         """비디오에 텍스트 오버레이 추가"""
         current_video = video_path
         current_time = 0
@@ -165,7 +165,7 @@ class VideoServiceFFmpeg:
 
         return current_video
 
-    async def _collect_scene_audio(self, scenes: List[SceneWithData]) -> List[str]:
+    async def _collect_scene_audio(self, scenes: List[Scene]) -> List[str]:
         """씬별 오디오 수집 - 개선된 버전"""
         audio_files = []
         current_time = 0

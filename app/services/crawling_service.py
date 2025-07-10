@@ -6,7 +6,7 @@ import base64
 # import tempfile  # 제거
 import os
 import shutil
-import requests
+import httpx  # requests 대신 httpx 사용
 from bs4 import BeautifulSoup
 from html2image import Html2Image
 from io import BytesIO
@@ -129,9 +129,13 @@ class CrawlingService:
                 "url": url,
                 "format": "raw",
             }
-            response = requests.post("https://api.brightdata.com/request", json=data, headers=headers)
+
+            # 🔧 수정: requests.post 대신 httpx.AsyncClient 사용
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post("https://api.brightdata.com/request", json=data, headers=headers)
+
             soup = BeautifulSoup(response.text, "html.parser")
-            for element in soup(["noscript", "script"]):
+            for element in soup(["noscript"]):
                 element.decompose()
             cleaned_html = str(soup)
             screenshot_base64 = self.take_screenshot(cleaned_html)
@@ -143,5 +147,24 @@ class CrawlingService:
             image_url = await self.io_processor.upload_file_s3(file_data=image_bytes, ext="png")
 
             return image_url
+        except Exception as e:
+            raise ServerException(f"Error: {e}")
+
+    # 비동기 웹 크롤링 메서드
+    async def crawl_website(self, url: str) -> str:
+        try:
+            headers = {
+                "Authorization": f"Bearer {get_settings().bright_data_api_key}",
+                "Content-Type": "application/json",
+            }
+            data = {
+                "zone": "web_unlocker1",
+                "url": url,
+                "format": "raw",
+            }
+            # 🔧 수정: 비동기 HTTP 클라이언트 사용
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post("https://api.brightdata.com/request", json=data, headers=headers)
+            return response.text
         except Exception as e:
             raise ServerException(f"Error: {e}")
