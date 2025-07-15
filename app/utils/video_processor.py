@@ -37,5 +37,14 @@ class VideoProcessor:
 
     def save_video(self, video: CompositeVideoClip):
         output_path = os.path.join(self.temp_dir, f"shorts_video_{uuid.uuid4()}.mp4")
-        video.write_videofile(output_path, codec="libx264", audio_codec="aac", threads=4, fps=24, audio_fps=24000)
+        video.write_videofile(
+            output_path,
+            codec="libx264",
+            audio_codec="aac",
+            threads=4,
+            fps=24,
+            audio_fps=24000,
+            logger=None,  # MoviePy 로그 비활성화
+            ffmpeg_params=["-loglevel", "quiet"],  # FFmpeg 로그 비활성화
+        )
         return output_path

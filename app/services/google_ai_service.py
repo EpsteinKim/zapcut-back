@@ -333,8 +333,6 @@ class GoogleAIService:
 
         adjusted_scenes_data = json.loads(response.text)
 
-        print(adjusted_scenes_data)
-
         # 딕셔너리를 Scene 객체로 변환
         adjusted_scenes = []
         for scene_data in adjusted_scenes_data:
@@ -364,7 +362,6 @@ class GoogleAIService:
                     adjusted_scenes[j].duration = adjusted_scenes[j].captions[-1].end_time
                 start_time += adjusted_scenes[j].duration
 
-            print(start_time, scene.duration)
             end_time = start_time + scene.duration
 
             # 시간을 밀리초로 변환

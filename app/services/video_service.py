@@ -37,7 +37,6 @@ class VideoService:
         self.io_processor = IOProcessor()
 
     def _is_gif_file(self, file_path: str) -> bool:
-        """GIF 파일인지 확인"""
         # 확장자로 먼저 확인
         if file_path.lower().endswith(".gif"):
             return True
@@ -56,7 +55,6 @@ class VideoService:
             return False
 
     async def _process_scene_media(self, scene, google_ai_service):
-        """단일 scene의 미디어 처리를 담당하는 헬퍼 메서드"""
         if scene.video_url is not None:
             video_path = await self.io_processor.download_file(scene.video_url)
             target_clip = VideoFileClip(video_path)
@@ -86,41 +84,11 @@ class VideoService:
             return target_clip, upload_url
 
     async def _process_scene_voice(self, scene):
-        """단일 scene의 음성 처리를 담당하는 헬퍼 메서드"""
         if scene.voice_url:
             voice_path = await self.io_processor.download_file(scene.voice_url)
             audio_clip = AudioFileClip(voice_path)
             return audio_clip
         return None
-
-    async def _process_scene_media_with_retry(self, scene, google_ai_service, max_retries=3):
-        """재시도 로직이 포함된 미디어 처리 메서드"""
-        for attempt in range(max_retries):
-            try:
-                return await self._process_scene_media(scene, google_ai_service)
-            except Exception as e:
-                logging.warning(f"Scene media processing attempt {attempt + 1} failed: {str(e)}")
-                if attempt == max_retries - 1:
-                    # 마지막 시도에서 실패하면 기본 이미지로 대체
-                    logging.error(f"All attempts failed for scene media, using fallback. Error: {str(e)}")
-                    # 기본 검은색 이미지 생성
-                    fallback_image = Image.new("RGB", (1080, 1080), color="black")
-                    image_array = np.array(fallback_image)
-                    target_clip = ImageClip(image_array, duration=scene.duration)
-                    return target_clip, None
-                await asyncio.sleep(1 * (attempt + 1))  # 점진적 백오프
-
-    async def _process_scene_voice_with_retry(self, scene, max_retries=3):
-        """재시도 로직이 포함된 음성 처리 메서드"""
-        for attempt in range(max_retries):
-            try:
-                return await self._process_scene_voice(scene)
-            except Exception as e:
-                logging.warning(f"Scene voice processing attempt {attempt + 1} failed: {str(e)}")
-                if attempt == max_retries - 1:
-                    logging.error(f"All attempts failed for scene voice. Error: {str(e)}")
-                    return None
-                await asyncio.sleep(1 * (attempt + 1))  # 점진적 백오프
 
     async def create_video(self, request: ShortsVideoRequest) -> str:
         google_ai_service = get_google_ai_service()
@@ -145,40 +113,23 @@ class VideoService:
             background_music = background_music.with_volume_scaled(request.music_volume).with_duration(total_duration)
             audio_clips.append(background_music)
 
-        # 모든 scene의 미디어와 음성을 병렬로 처리 (재시도 로직 포함)
-        media_tasks = [self._process_scene_media_with_retry(scene, google_ai_service) for scene in request.scenes]
-        voice_tasks = [self._process_scene_voice_with_retry(scene) for scene in request.scenes]
+        # 모든 scene의 미디어와 음성을 병렬로 처리
+        media_tasks = [self._process_scene_media(scene, google_ai_service) for scene in request.scenes]
+        voice_tasks = [self._process_scene_voice(scene) for scene in request.scenes]
 
         try:
-            # 병렬 실행 - return_exceptions=True로 개별 에러가 전체 처리를 중단하지 않도록 함
-            media_results = await asyncio.gather(*media_tasks, return_exceptions=True)
-            voice_results = await asyncio.gather(*voice_tasks, return_exceptions=True)
+            # 병렬 실행
+            media_results = await asyncio.gather(*media_tasks)
+            voice_results = await asyncio.gather(*voice_tasks)
         except Exception as e:
             logging.error(f"Critical error in parallel processing: {str(e)}")
-            raise ServerException(f"비디오 처리 중 치명적 오류가 발생했습니다: {str(e)}")
+            raise ServerException(data=e)
 
         current_time = 0  # 합성 비디오를 만들기 위한 누적 시간
 
         for i, scene in enumerate(request.scenes):
-            # 에러 결과 처리
-            media_result = media_results[i]
-            voice_result = voice_results[i]
-
-            if isinstance(media_result, Exception):
-                logging.error(f"Media processing failed for scene {i}: {str(media_result)}")
-                # 기본 이미지로 대체
-                fallback_image = Image.new("RGB", (1080, 1080), color="black")
-                image_array = np.array(fallback_image)
-                target_clip = ImageClip(image_array, duration=scene.duration)
-                upload_url = None
-            else:
-                target_clip, upload_url = media_result
-
-            if isinstance(voice_result, Exception):
-                logging.error(f"Voice processing failed for scene {i}: {str(voice_result)}")
-                voice_clip = None
-            else:
-                voice_clip = voice_result
+            target_clip, upload_url = media_results[i]
+            voice_clip = voice_results[i]
 
             target_clip = (
                 target_clip.with_duration(scene.duration)
@@ -245,9 +196,9 @@ class VideoService:
             background.close()
             if os.path.exists(output_path):
                 os.remove(output_path)
-            if music_path and os.path.exists(music_path):
+            if music_path and os.path.exists(music_path) and request.bgm_id == BGMType.CUSTOM:
                 os.remove(music_path)
 
             return download_url
         except Exception as e:
-            raise ServerException(f"파일 업로드 실패: {str(e)}")
+            raise ServerException(data=e)

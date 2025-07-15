@@ -2,38 +2,16 @@ import os
 
 os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.exceptions import RequestValidationError
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from app.core.config import get_settings, TEMP_DIR
+from app.core.config import TEMP_DIR
 from app.utils.cleanup_handler import initialize_cleanup_handler
 
 import logging
 from app.controller import shortsController, crawlingController
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
-import json
-import asyncio
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import JSONResponse
-
-
-# 타임아웃 미들웨어 클래스
-class TimeoutMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, timeout: int = 60):
-        super().__init__(app)
-        self.timeout = timeout
-
-    async def dispatch(self, request: Request, call_next):
-        try:
-            # 요청 처리에 타임아웃 적용
-            return await asyncio.wait_for(call_next(request), timeout=self.timeout)
-        except asyncio.TimeoutError:
-            return JSONResponse(
-                status_code=408, content={"message": f"요청 처리 시간이 {self.timeout}초를 초과했습니다.", "data": None}
-            )
+from app.middleware.timeout_middleware import TimeoutMiddleware
 
 
 app = FastAPI(
@@ -41,7 +19,7 @@ app = FastAPI(
 )
 
 # 타임아웃 미들웨어 추가 (1분 = 60초)
-app.add_middleware(TimeoutMiddleware, timeout=120)
+app.add_middleware(TimeoutMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

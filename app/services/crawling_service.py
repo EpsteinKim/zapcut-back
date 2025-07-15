@@ -28,7 +28,12 @@ class CrawlingService:
         if os.getenv("ENV") == "production":
             option = {
                 "browser_executable": "/usr/bin/chromium",
-                "custom_flags": ["--no-sandbox", "--disable-dev-shm-usage"],
+                "custom_flags": [
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--disable-gpu",
+                    "--disable-setuid-sandbox",
+                ],
             }
         else:
             option = {
@@ -118,7 +123,7 @@ class CrawlingService:
         except Exception as e:
             raise ServerException(f"Screenshot error: {e}")
 
-    async def crawl_website_image(self, url: str, user_id: int = 1) -> str:
+    async def crawl_website_image(self, url: str) -> str:
         try:
             headers = {
                 "Authorization": f"Bearer {get_settings().bright_data_api_key}",
@@ -166,5 +171,14 @@ class CrawlingService:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post("https://api.brightdata.com/request", json=data, headers=headers)
             return response.text
+        except Exception as e:
+            raise ServerException(f"Error: {e}")
+
+    async def crawl_website_with_proxy(self, url: str) -> str:
+        try:
+            async with httpx.AsyncClient(proxy=get_settings().residential_proxy, timeout=30.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                return response.text
         except Exception as e:
             raise ServerException(f"Error: {e}")
