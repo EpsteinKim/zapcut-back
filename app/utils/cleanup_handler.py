@@ -7,18 +7,49 @@ import threading
 import logging
 import time
 from typing import Optional
-from app.utils.os_processor import cleanup_old_files
 
 logger = logging.getLogger(__name__)
+
+
+def cleanup_old_files(dir_path: str, max_age_seconds: int = 3600):
+    if not os.path.exists(dir_path):
+        return
+
+    current_time = time.time()
+    deleted_count = 0
+
+    for root, dirs, files in os.walk(dir_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            try:
+                mtime = os.path.getmtime(file_path)
+                age_seconds = current_time - mtime
+
+                if age_seconds > max_age_seconds:
+                    os.unlink(file_path)
+                    deleted_count += 1
+            except Exception as e:
+                logger.error(f"❌ 파일 처리 중 오류 발생 {file_path}: {e}")
+
+        for dir_name in dirs:
+            dir_path_full = os.path.join(root, dir_name)
+            try:
+                if not os.listdir(dir_path_full):
+                    os.rmdir(dir_path_full)
+            except Exception:
+                pass
+
+    if deleted_count > 0:
+        logger.info(f"🧹 {dir_path}에서 오래된 파일 {deleted_count}개 정리 완료")
 
 
 class CleanupHandler:
     """서비스 종료 시 리소스 정리를 담당하는 클래스"""
 
-    def __init__(self, temp_dir: str, auto_cleanup_interval: int = 3600, max_file_age_hours: int = 1):
+    def __init__(self, temp_dir: str, auto_cleanup_interval: int = 60 * 5, max_file_age_seconds: int = 60 * 20):
         self.temp_dir = temp_dir
         self.auto_cleanup_interval = auto_cleanup_interval  # 자동 정리 간격 (초)
-        self.max_file_age_hours = max_file_age_hours  # 최대 파일 보존 시간 (시간)
+        self.max_file_age_seconds = max_file_age_seconds  # 최대 파일 보존 시간 (초)
         self._cleanup_done = False
         self._cleanup_lock = threading.Lock()
         self._auto_cleanup_thread = None
@@ -45,7 +76,7 @@ class CleanupHandler:
         )
         self._auto_cleanup_thread.start()
         logger.info(
-            f"🔄 자동 정리 스레드 시작 (간격: {self.auto_cleanup_interval}초, 최대 보존: {self.max_file_age_hours}시간)"
+            f"🔄 자동 정리 스레드 시작 (간격: {self.auto_cleanup_interval}초, 최대 보존: {self.max_file_age_seconds}초)"
         )
 
     def _auto_cleanup_worker(self):
@@ -54,8 +85,8 @@ class CleanupHandler:
                 if self._stop_auto_cleanup.wait(self.auto_cleanup_interval):
                     break
 
-                logger.info(f"🧹 자동 정리 실행 중... (최대 보존: {self.max_file_age_hours}시간)")
-                cleanup_old_files(self.temp_dir, self.max_file_age_hours)
+                logger.info(f"🧹 자동 정리 실행 중... (최대 보존: {self.max_file_age_seconds}초)")
+                cleanup_old_files(self.temp_dir, self.max_file_age_seconds)
                 logger.info("✅ 자동 정리 완료")
 
             except Exception as e:
@@ -117,8 +148,6 @@ class CleanupHandler:
                     except Exception as e:
                         if attempt < max_retries - 1:
                             logger.warning(f"⚠️ TEMP_DIR 정리 재시도 {attempt + 1}/{max_retries}: {str(e)}")
-                            import time
-
                             time.sleep(1)
                         else:
                             raise e
@@ -152,8 +181,8 @@ class CleanupHandler:
         self.cleanup_temp_directory()
 
     def manual_cleanup_old_files(self):
-        logger.info(f"🔧 수동 오래된 파일 정리 실행 (최대 보존: {self.max_file_age_hours}시간)")
-        cleanup_old_files(self.temp_dir, self.max_file_age_hours)
+        logger.info(f"🔧 수동 오래된 파일 정리 실행 (최대 보존: {self.max_file_age_seconds}초)")
+        cleanup_old_files(self.temp_dir, self.max_file_age_seconds)
 
 
 # 전역 인스턴스 (필요시 사용)
@@ -161,10 +190,10 @@ _cleanup_handler: Optional[CleanupHandler] = None
 
 
 def initialize_cleanup_handler(
-    temp_dir: str, auto_cleanup_interval: int = 3600, max_file_age_hours: int = 24
+    temp_dir: str, auto_cleanup_interval: int = 60 * 5, max_file_age_seconds: int = 60 * 20
 ) -> CleanupHandler:
     global _cleanup_handler
-    _cleanup_handler = CleanupHandler(temp_dir, auto_cleanup_interval, max_file_age_hours)
+    _cleanup_handler = CleanupHandler(temp_dir, auto_cleanup_interval, max_file_age_seconds)
     return _cleanup_handler
 
 

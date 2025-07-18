@@ -92,8 +92,10 @@ class IOProcessor:
 
                 # Upload file
                 file_data.seek(0)  # Reset file pointer to beginning
+                file_content = file_data.read()  # Read entire content into memory
+                file_data.close()  # Explicitly close the BytesIO object after reading
                 async with session.put(
-                    upload_url, headers={"Content-Type": content_type}, data=file_data.read()
+                    upload_url, headers={"Content-Type": content_type}, data=file_content
                 ) as upload_response:
                     if upload_response.status != 200:
                         raise ServerException("파일 업로드에 실패했습니다.")

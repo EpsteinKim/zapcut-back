@@ -230,6 +230,32 @@ REMOTE_EOF
 DEPLOY_EOF
 }
 
+dev_test() {
+    ssh -q root@zapcut << 'EOF'
+        cd ~/zapcut-back
+
+        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/# *upstream zapcut-api-blue {/,/# *}/s/^# *//' ./nginx/nginx.conf
+            fi
+        else
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/upstream zapcut-api-blue {/,/}/s/^/# /' ./nginx/nginx.conf
+            fi
+        fi
+
+        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-green"; then
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/# *upstream zapcut-api-green {/,/# *}/s/^# *//' ./nginx/nginx.conf
+            fi
+        else
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/upstream zapcut-api-green {/,/}/s/^/# /' ./nginx/nginx.conf
+            fi
+        fi
+EOF
+}
+
 check_status() {
     ssh -q root@zapcut << 'EOF'
         cd ~/zapcut-back
@@ -270,6 +296,30 @@ switch_environment() {
         export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         export DEPLOYMENT_DATE=$(TZ=Asia/Seoul date +'%Y-%m-%d %H:%M:%S')
 
+        # 컨테이너 내부의 nginx.conf를 서버로 복사하여 동기화
+        docker cp zapcut-nginx:/etc/nginx/nginx.conf ./nginx/nginx.conf
+
+        # upstream 주석 처리 관련
+        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/# *upstream zapcut-api-blue {/,/# *}/s/^# *//' ./nginx/nginx.conf
+            fi
+        else
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/upstream zapcut-api-blue {/,/}/s/^/# /' ./nginx/nginx.conf
+            fi
+        fi
+
+        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-green"; then
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/# *upstream zapcut-api-green {/,/# *}/s/^# *//' ./nginx/nginx.conf
+            fi
+        else
+            if [ -f ./nginx/nginx.conf ]; then
+                sed -i '/upstream zapcut-api-green {/,/}/s/^/# /' ./nginx/nginx.conf
+            fi
+        fi
+        
         PRODUCTION_ENV=$(grep "proxy_pass http://zapcut-api-" ./nginx/nginx.conf | sed -E 's/.*proxy_pass http:\/\/zapcut-api-([^;]+);.*/\1/')
         if [ -z "$PRODUCTION_ENV" ]; then
             echo "⚠️  ./nginx/nginx.conf에서 zapcut-api-<env> 패턴을 찾지 못했습니다."
@@ -354,9 +404,9 @@ stop_api() {
     ssh -q root@zapcut << 'EOF'
         cd ~/zapcut-back
 
-        docker-compose stop zapcut-api-blue 2>/dev/null
+        docker-compose stop zapcut-api-blue
 
-        docker-compose stop zapcut-api-green 2>/dev/null
+        docker-compose stop zapcut-api-green
 EOF
 }
 logs() {
@@ -443,6 +493,9 @@ case $1 in
         ;;
     start)
         start_api
+        ;;
+    test)
+        dev_test
         ;;
     logs)
         logs $2

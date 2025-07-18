@@ -68,18 +68,18 @@ class VideoService:
                 return target_clip, None
             else:
                 # 일반 이미지 처리
-                pil_image = Image.open(image_path)
-                if pil_image.mode != "RGB":
-                    pil_image = pil_image.convert("RGB")
-                image_array = np.array(pil_image)
+                with Image.open(image_path) as pil_image:
+                    if pil_image.mode != "RGB":
+                        pil_image = pil_image.convert("RGB")
+                    image_array = np.array(pil_image)
                 target_clip = ImageClip(image_array, duration=scene.duration)
                 return target_clip, None
         else:
             (upload_url, image_buffer) = await google_ai_service.generate_shorts_image(scene.description)
-            pil_image = Image.open(image_buffer)
-            if pil_image.mode != "RGB":
-                pil_image = pil_image.convert("RGB")
-            image_array = np.array(pil_image)
+            with Image.open(image_buffer) as pil_image:
+                if pil_image.mode != "RGB":
+                    pil_image = pil_image.convert("RGB")
+                image_array = np.array(pil_image)
             target_clip = ImageClip(image_array, duration=scene.duration)
             return target_clip, upload_url
 
@@ -123,7 +123,10 @@ class VideoService:
             voice_results = await asyncio.gather(*voice_tasks)
         except Exception as e:
             logging.error(f"Critical error in parallel processing: {str(e)}")
-            raise ServerException(data=e)
+            raise ServerException(
+                message=f"병렬 처리 중 오류 발생: {str(e)}",
+                data={"original_error": str(e), "error_type": e.__class__.__name__},
+            )
 
         current_time = 0  # 합성 비디오를 만들기 위한 누적 시간
 
@@ -177,12 +180,8 @@ class VideoService:
         final_video_clip = final_video_clip.with_audio(final_audio_clip).with_duration(total_duration)
         output_path = self.video_processor.save_video(final_video_clip)
 
-        with open(output_path, "rb") as f:
-            video_bytes = f.read()
-        video_buffer = BytesIO(video_bytes)
-
         try:
-            download_url = await self.io_processor.upload_file_s3(file_data=video_buffer, ext="mp4")
+            download_url = await self.io_processor.upload_file_s3(file_path=output_path, ext="mp4")
 
             for clip in video_clips:
                 clip.close()
@@ -201,4 +200,7 @@ class VideoService:
 
             return download_url
         except Exception as e:
-            raise ServerException(data=e)
+            raise ServerException(
+                message=f"파일 업로드 중 오류 발생: {str(e)}",
+                data={"original_error": str(e), "error_type": e.__class__.__name__},
+            )
