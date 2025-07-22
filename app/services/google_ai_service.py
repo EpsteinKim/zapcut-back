@@ -23,9 +23,10 @@ class GoogleScheme(BaseModel):
     scenes: list[Scene]
 
 
-class SimpleSceneAlter(BaseModel):
+class InitialScene(BaseModel):
     text: str
     description: str
+    image_url: str = ""
 
 
 class GoogleSchemeAlter(BaseModel):
@@ -40,16 +41,10 @@ class GoogleAIService:
         # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
         self.temp_dir = get_temp_dir("google_ai_service")
 
-    async def generate_shorts_script_string(
-        self,
-        duration: str,
-        user_prompt: str,
-        page_image_url: str | None = None,
-    ):
+    async def generate_shorts_script_string(self, duration: str, user_prompt: str, page_html: str | None = None):
         system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
         Your task is to create engaging content for a YouTube Shorts video.
         Focus on creating viral content that can attract viewers' attention.
-        If a photo is uploaded together, extract detailed page information based on that photo and be sure to include it in the information.
         Also, if the page is a sales page for a specific product, analyze the product and be sure to include that information as well.
 
         There must be at least 5 scenes in total.
@@ -58,12 +53,19 @@ class GoogleAIService:
         Write in a friendly, conversational tone in Korean.
         And the scene description should only be the scene description, excluding the music description.
         """
+
+        if page_html:
+            user_prompt += f"""
+            Please analyze the following HTML of the requested page and use it as a basis for your analysis.
+            And please select and suggest images from the given HTML that would be good to include in each shorts script.
+            But youtube related videos are not allowed to be included.
+            Do not include images with an aspect ratio greater than 2:1.
+            If there is no appropriate image, you can omit it.
+            And please suggest different images for each scene.
+            {page_html}
+        """
+
         content = [user_prompt]
-        if page_image_url:
-            image_path = await self.io_processor.download_file(page_image_url)
-            with open(image_path, "rb") as image_file:
-                image_bytes = image_file.read()
-            content.insert(0, genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
 
         response = await self.client.aio.models.generate_content(
             model="gemini-2.5-flash",
@@ -71,7 +73,7 @@ class GoogleAIService:
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
-                response_schema=list[SimpleSceneAlter],
+                response_schema=list[InitialScene],
             ),
         )
 
@@ -83,8 +85,6 @@ class GoogleAIService:
         title: str | None = None,
         page_image_url: str | None = None,
         description: str | None = None,
-        additional_prompt: str | None = None,
-        background_music_url: str | None = None,
     ):
         system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
         Your task is to create engaging content for a YouTube Shorts video.
@@ -127,10 +127,6 @@ class GoogleAIService:
 
         if description:
             user_prompt += f"""설명: {description}
-            """
-
-        if additional_prompt:
-            user_prompt += f"""쇼츠 진행방식: {additional_prompt}
             """
 
         user_prompt += f"""
@@ -254,7 +250,7 @@ class GoogleAIService:
 
                 audio.export(temp_wav_path, format="mp3")
 
-                return {"output_path": temp_wav_path, "fps": 24000}
+                return temp_wav_path
 
             except Exception as e:
                 if attempt == max_retries - 1:

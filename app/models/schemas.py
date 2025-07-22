@@ -160,7 +160,7 @@ class SceneAlter(BaseModel):
 
 
 class ShortsScriptRequest(BaseModel):
-    page_image_url: str | None = None
+    page_html: str | None = None
     user_prompt: str | None = None
     duration: int
 

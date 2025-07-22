@@ -28,7 +28,6 @@ class Settings(BaseSettings):
 
     proxy: str
     unlock_proxy: str
-    residential_proxy: str
     bright_data_api_key: str
 
     class Config:

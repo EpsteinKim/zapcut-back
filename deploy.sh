@@ -400,15 +400,6 @@ switch_environment() {
 EOF
 }
 
-stop_api() {
-    ssh -q root@zapcut << 'EOF'
-        cd ~/zapcut-back
-
-        docker-compose stop zapcut-api-blue
-
-        docker-compose stop zapcut-api-green
-EOF
-}
 logs() {
     if [ -z "$1" ]; then
         echo "❌ 로그를 볼 컨테이너를 지정해주세요."
@@ -443,6 +434,29 @@ logs() {
     esac
 }
 
+stop_api() {
+    ssh -q root@zapcut << 'EOF'
+        cd ~/zapcut-back
+
+        docker-compose stop zapcut-api-blue
+
+        docker-compose stop zapcut-api-green
+EOF
+}
+stop_nginx() {
+    ssh -q root@zapcut << 'EOF'
+        cd ~/zapcut-back
+
+        docker-compose stop nginx
+EOF
+}
+start_nginx() {
+    ssh -q root@zapcut << 'EOF'
+        cd ~/zapcut-back
+
+        docker-compose start nginx
+EOF
+}
 start_api() {
     ssh -q root@zapcut << 'EOF'
         cd ~/zapcut-back
@@ -499,6 +513,13 @@ case $1 in
         ;;
     logs)
         logs $2
+        ;;
+    nginx)
+        if [ "$2" = "stop" ]; then
+            stop_nginx
+        elif [ "$2" = "start" ]; then
+            start_nginx
+        fi
         ;;
     *)
         echo "Usage: $0 {api|init|check|switch|stop|start|logs}"
