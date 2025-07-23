@@ -72,7 +72,7 @@ async def create_shorts_video(request: ShortsVideoRequest, services: Services = 
 
 @router.post("/image")
 async def get_shorts_image(request: ShortsImageRequest, services: Services = Depends(get_services)):
-    (download_url, _) = await services.google_ai.generate_shorts_image(request.prompt)
+    download_url = await services.google_ai.generate_shorts_image(request.prompt)
     return Response.with_data(download_url)
 
 

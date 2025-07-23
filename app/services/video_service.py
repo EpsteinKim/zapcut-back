@@ -35,6 +35,7 @@ class VideoService:
         self.audio_processor = AudioProcessor()
         self.text_processor = TextProcessor(self.video_width, self.video_height)
         self.io_processor = IOProcessor()
+        self.google_ai_service = get_google_ai_service()
 
     def _is_gif_file(self, file_path: str) -> bool:
         # 확장자로 먼저 확인
@@ -54,44 +55,53 @@ class VideoService:
         except:
             return False
 
-    async def _process_scene_media(self, scene, google_ai_service):
-        if scene.video_url is not None:
-            video_path = await self.io_processor.download_file(scene.video_url)
-            target_clip = VideoFileClip(video_path)
-            return target_clip, None
-        elif scene.image_url is not None:
-            image_path = await self.io_processor.download_file(scene.image_url)
+    async def _process_scene_media(self, scene):
+        try:
+            if scene.video_url is not None:
+                video_path = await self.io_processor.download_file(scene.video_url)
+                target_clip = VideoFileClip(video_path)
+                return target_clip
+            elif scene.image_url is not None:
+                image_path = await self.io_processor.download_file(scene.image_url)
 
-            # GIF 파일인지 확인하고 적절히 처리
-            if self._is_gif_file(image_path):
-                target_clip = VideoFileClip(image_path).with_effects([vfx.Loop(duration=scene.duration)])
-                return target_clip, None
+                # GIF 파일인지 확인하고 적절히 처리
+                if self._is_gif_file(image_path):
+                    target_clip = VideoFileClip(image_path).with_effects([vfx.Loop(duration=scene.duration)])
+                    return target_clip
+                else:
+                    # 일반 이미지 처리
+                    with Image.open(image_path) as pil_image:
+                        if pil_image.mode != "RGB":
+                            pil_image = pil_image.convert("RGB")
+                        image_array = np.array(pil_image)  # with 블록 안에서 변환
+                    target_clip = ImageClip(image_array, duration=scene.duration)
+                    return target_clip
             else:
-                # 일반 이미지 처리
-                with Image.open(image_path) as pil_image:
+                # 이후에 잘 사용하지는 않을거라 비효율적으로 구성
+                image_url = await self.google_ai_service.generate_shorts_image(scene.description)
+                temp_image_path = await self.io_processor.download_file(image_url)
+                with Image.open(temp_image_path) as pil_image:
                     if pil_image.mode != "RGB":
                         pil_image = pil_image.convert("RGB")
-                    image_array = np.array(pil_image)
+                    image_array = np.array(pil_image)  # with 블록 안에서 변환
                 target_clip = ImageClip(image_array, duration=scene.duration)
-                return target_clip, None
-        else:
-            (upload_url, image_buffer) = await google_ai_service.generate_shorts_image(scene.description)
-            with Image.open(image_buffer) as pil_image:
-                if pil_image.mode != "RGB":
-                    pil_image = pil_image.convert("RGB")
-                image_array = np.array(pil_image)
-            target_clip = ImageClip(image_array, duration=scene.duration)
-            return target_clip, upload_url
+                return target_clip
+        except Exception as e:
+            logging.error(f"Scene media processing error: {str(e)}")
+            raise e
 
     async def _process_scene_voice(self, scene):
         if scene.voice_url:
-            voice_path = await self.io_processor.download_file(scene.voice_url)
-            audio_clip = AudioFileClip(voice_path)
-            return audio_clip
+            try:
+                voice_path = await self.io_processor.download_file(scene.voice_url)
+                audio_clip = AudioFileClip(voice_path)
+                return audio_clip
+            except Exception as e:
+                logging.error(f"음성 파일 처리 실패: {str(e)}")
+                return None
         return None
 
     async def create_video(self, request: ShortsVideoRequest) -> str:
-        google_ai_service = get_google_ai_service()
         video_clips = []
         text_clips = []
         audio_clips = []
@@ -114,11 +124,11 @@ class VideoService:
             audio_clips.append(background_music)
 
         # 모든 scene의 미디어와 음성을 병렬로 처리
-        media_tasks = [self._process_scene_media(scene, google_ai_service) for scene in request.scenes]
+        media_tasks = [self._process_scene_media(scene) for scene in request.scenes]
         voice_tasks = [self._process_scene_voice(scene) for scene in request.scenes]
 
         try:
-            # 병렬 실행
+            # 병렬 실행 - 개별 작업 실패가 전체를 중단시키지 않도록 return_exceptions=True 사용
             media_results = await asyncio.gather(*media_tasks)
             voice_results = await asyncio.gather(*voice_tasks)
         except Exception as e:
@@ -131,8 +141,12 @@ class VideoService:
         current_time = 0  # 합성 비디오를 만들기 위한 누적 시간
 
         for i, scene in enumerate(request.scenes):
-            target_clip, upload_url = media_results[i]
-            voice_clip = voice_results[i]
+            target_clip = media_results[i]
+
+            # voice_clip 처리 - 예외인 경우 None으로 처리
+            voice_clip = None
+            if not isinstance(voice_results[i], Exception):
+                voice_clip = voice_results[i]
 
             target_clip = (
                 target_clip.with_duration(scene.duration)

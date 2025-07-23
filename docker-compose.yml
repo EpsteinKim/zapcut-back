@@ -33,7 +33,6 @@ services:
       - ENVIRONMENT=blue
       - DEPLOYMENT_DATE=${DEPLOYMENT_DATE}
     volumes:
-      - ./temp_blue:/zapcut-back/temp
       - ./.env:/zapcut-back/.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
@@ -57,7 +56,6 @@ services:
       - ENVIRONMENT=green
       - DEPLOYMENT_DATE=${DEPLOYMENT_DATE}
     volumes:
-      - ./temp_green:/zapcut-back/temp
       - ./.env:/zapcut-back/.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]

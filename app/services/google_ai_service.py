@@ -175,10 +175,11 @@ class GoogleAIService:
     async def generate_shorts_image(self, user_prompt: str, max_retries=3):
         translated_prompt = self.translate(user_prompt, "English")
 
-        translated_prompt += f"""
-            - must not include Children appearing in the content
+        translated_prompt = f"""
             - must not include Content that may appear violent
             - must not include Content that is excessively stimulating and could have negative effects on people
+
+            {translated_prompt}
         """
 
         for attempt in range(max_retries):
@@ -187,10 +188,12 @@ class GoogleAIService:
                     model="imagen-3.0-generate-002",
                     prompt=translated_prompt,
                     config=genai.types.GenerateImagesConfig(
-                        number_of_images=1,
-                        aspect_ratio="1:1",
+                        number_of_images=1, aspect_ratio="1:1", person_generation="ALLOW_ADULT"
                     ),
                 )
+
+                if not response.generated_images:
+                    raise Exception("No images generated from AI service")
 
                 for generated_image in response.generated_images:
                     image_data = generated_image.image.image_bytes
@@ -200,7 +203,7 @@ class GoogleAIService:
                         image = BytesIO(image_data)
 
                     download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
-                    return (download_url, image)
+                    return download_url
 
             except Exception as e:
                 logging.warning(str(e))
@@ -242,15 +245,21 @@ class GoogleAIService:
                 )
                 data = response.candidates[0].content.parts[0].inline_data.data
                 audio_data = decode_base64_data(data)
-
                 temp_wav_path = os.path.join(self.temp_dir, f"tts_audio_{uuid.uuid4()}.mp3")
                 audio = AudioSegment(audio_data, sample_width=2, frame_rate=24000, channels=1)
-
                 if speed_multiplier != 1.0:
                     audio = audio.speedup(playback_speed=speed_multiplier)
+                try:
+                    audio.export(temp_wav_path, format="mp3")
+                except Exception as export_error:
+                    logging.error(f"audio.export 실패: {str(export_error)}")
+                    raise ServerException(f"오디오 export 실패: {str(export_error)}")
 
-                audio.export(temp_wav_path, format="mp3")
+                # 파일이 생성되었는지 확인
+                if not os.path.exists(temp_wav_path):
+                    raise ServerException(f"TTS 오디오 파일 생성 실패: {temp_wav_path}")
 
+                logging.info(f"TTS 파일 생성 성공: {temp_wav_path}")
                 return temp_wav_path
 
             except Exception as e:

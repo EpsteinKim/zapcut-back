@@ -38,8 +38,9 @@ ENV PYTHONPATH=/zapcut-back
 ENV ENV=production
 ENV DEPLOYMENT_DATE=${DEPLOYMENT_DATE}
 
-# temp 디렉토리 생성
-RUN mkdir -p /zapcut-back/temp
+# temp 디렉토리 생성 및 권한 설정
+RUN mkdir -p /zapcut-back/app/temp && \
+    chmod 755 /zapcut-back/app/temp
 
 # 애플리케이션 소스 코드 복사
 COPY . .
