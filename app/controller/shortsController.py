@@ -30,21 +30,21 @@ async def get_page_image(url: str, services: Services = Depends(get_services)):
     return Response.with_data(image_url)
 
 
-@router.post("/scripts")
-async def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depends(get_services)):
-    if request.page_image_url:
-        video_script = await services.google_ai.generate_shorts_scripts(
-            duration=f"{request.duration}s",
-            user_prompt=request.user_prompt,
-            page_image_url=request.page_image_url,
-        )
-    else:
-        video_script = await services.google_ai.generate_shorts_scripts(
-            duration=f"{request.duration}s",
-            user_prompt=request.user_prompt,
-        )
+# @router.post("/scripts")
+# async def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depends(get_services)):
+#     if request.page_image_url:
+#         video_script = await services.google_ai.generate_shorts_scripts(
+#             duration=f"{request.duration}s",
+#             user_prompt=request.user_prompt,
+#             page_image_url=request.page_image_url,
+#         )
+#     else:
+#         video_script = await services.google_ai.generate_shorts_scripts(
+#             duration=f"{request.duration}s",
+#             user_prompt=request.user_prompt,
+#         )
 
-    return Response.with_data(video_script)
+#     return Response.with_data(video_script)
 
 
 @router.post("/initial-scenes")

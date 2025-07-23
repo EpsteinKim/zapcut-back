@@ -52,6 +52,7 @@ class GoogleAIService:
         At least each scene should have a narration of at least 10 characters.
         Write in a friendly, conversational tone in Korean.
         And the scene description should only be the scene description, excluding the music description.
+        If there is no HTML, do not include imageUrl or videoUrl.
         """
 
         if page_html:
@@ -79,78 +80,78 @@ class GoogleAIService:
 
         return json.loads(response.text)
 
-    async def generate_shorts_scripts(
-        self,
-        duration: str,
-        title: str | None = None,
-        page_image_url: str | None = None,
-        description: str | None = None,
-    ):
-        system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
-        Your task is to create engaging content for a YouTube Shorts video.
-        You should create content that is optimized for short-form video format and can be visualized using Stable Diffusion.
-        Focus on creating viral-worthy content that will engage viewers.
-        And if a photo is uploaded together, please extract detailed page information based on that photo and include it in the information as well.
-        And if the page is a sales page for a specific product, please analyze the product and include it in the information as well.
+    # async def generate_shorts_scripts(
+    #     self,
+    #     duration: str,
+    #     title: str | None = None,
+    #     page_image_url: str | None = None,
+    #     description: str | None = None,
+    # ):
+    #     system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
+    #     Your task is to create engaging content for a YouTube Shorts video.
+    #     You should create content that is optimized for short-form video format and can be visualized using Stable Diffusion.
+    #     Focus on creating viral-worthy content that will engage viewers.
+    #     And if a photo is uploaded together, please extract detailed page information based on that photo and include it in the information as well.
+    #     And if the page is a sales page for a specific product, please analyze the product and include it in the information as well.
 
-        For each time segment:
-        - Maintain a natural flow of the overall story
-        - Keep scenes short and make quick transitions
-        - Ensure continuous audio flow without gaps
-        - Overlap captions slightly to maintain audio continuity
-        - Adjust timing to prevent audio silence between captions
-        - Use natural speech patterns that flow smoothly
-        - Include 3 or more captions per scene except for the first scene
-        - Don't write long captions at once, break them into multiple captions
-        - Make screen transitions as fast as possible
-        - Write in a friendly, conversational tone
-        - Write in Korean (must be Korean)
-        - Write descriptions in Korean as well (must be Korean)
-        - Each caption should be no more than 20 characters
-        - There should be at least 5 scenes
-        - Each scene's first caption should start at 0 seconds
-        - TTS voice speed is 1.2x, so please adjust the caption timing accordingly. Normally, one voice is finished in 0.6 second.
-        - Write appropriate video content descriptions for each scene
-        - Consider appropriate timing between captions for TTS
-        - Video length (must match exactly): {duration}s
-        - Do not use emojis
-        - Caption timing is relative to scene duration, but the sum of caption durations does not need to equal the sum of scene durations
-        """
+    #     For each time segment:
+    #     - Maintain a natural flow of the overall story
+    #     - Keep scenes short and make quick transitions
+    #     - Ensure continuous audio flow without gaps
+    #     - Overlap captions slightly to maintain audio continuity
+    #     - Adjust timing to prevent audio silence between captions
+    #     - Use natural speech patterns that flow smoothly
+    #     - Include 3 or more captions per scene except for the first scene
+    #     - Don't write long captions at once, break them into multiple captions
+    #     - Make screen transitions as fast as possible
+    #     - Write in a friendly, conversational tone
+    #     - Write in Korean (must be Korean)
+    #     - Write descriptions in Korean as well (must be Korean)
+    #     - Each caption should be no more than 20 characters
+    #     - There should be at least 5 scenes
+    #     - Each scene's first caption should start at 0 seconds
+    #     - TTS voice speed is 1.2x, so please adjust the caption timing accordingly. Normally, one voice is finished in 0.6 second.
+    #     - Write appropriate video content descriptions for each scene
+    #     - Consider appropriate timing between captions for TTS
+    #     - Video length (must match exactly): {duration}s
+    #     - Do not use emojis
+    #     - Caption timing is relative to scene duration, but the sum of caption durations does not need to equal the sum of scene durations
+    #     """
 
-        user_prompt = f"""Create a YouTube Shorts video script based on the following content:
-        
-        """
+    #     user_prompt = f"""Create a YouTube Shorts video script based on the following content:
 
-        if title:
-            user_prompt += f"""제목: {title}
-            """
+    #     """
 
-        if description:
-            user_prompt += f"""설명: {description}
-            """
+    #     if title:
+    #         user_prompt += f"""제목: {title}
+    #         """
 
-        user_prompt += f"""
-            이것들을 바탕으로 영상 스크립트를 작성해주세요.
-        """
+    #     if description:
+    #         user_prompt += f"""설명: {description}
+    #         """
 
-        content = [user_prompt]
-        if page_image_url:
-            image_path = await self.io_processor.download_file(page_image_url)
-            with open(image_path, "rb") as image_file:
-                image_bytes = image_file.read()
-            content.insert(0, genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
+    #     user_prompt += f"""
+    #         이것들을 바탕으로 영상 스크립트를 작성해주세요.
+    #     """
 
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=content,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                response_schema=GoogleScheme,
-            ),
-        )
+    #     content = [user_prompt]
+    #     if page_image_url:
+    #         image_path = await self.io_processor.download_file(page_image_url)
+    #         with open(image_path, "rb") as image_file:
+    #             image_bytes = image_file.read()
+    #         content.insert(0, genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
 
-        return json.loads(response.text)
+    #     response = await self.client.aio.models.generate_content(
+    #         model="gemini-2.5-flash",
+    #         contents=content,
+    #         config=genai.types.GenerateContentConfig(
+    #             system_instruction=system_prompt,
+    #             response_mime_type="application/json",
+    #             response_schema=GoogleScheme,
+    #         ),
+    #     )
+
+    #     return json.loads(response.text)
 
     def translate(self, string: str, language: str):
         system_prompt = f"""
