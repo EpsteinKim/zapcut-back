@@ -100,7 +100,7 @@ class CleanupHandler:
             logger.info("🛑 자동 정리 스레드 중지됨")
 
     def cleanup_temp_directory(self):
-        """TEMP_DIR의 모든 파일과 디렉토리를 정리 (폴더 자체는 유지)"""
+        """TEMP_DIR의 모든 파일과 디렉토리를 정리 (폴더 구조는 유지)"""
         with self._cleanup_lock:
             if self._cleanup_done:
                 return
@@ -114,36 +114,16 @@ class CleanupHandler:
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
-                        # temp_dir 내부의 모든 항목을 삭제하되, temp_dir 자체는 유지
-                        for item in os.listdir(self.temp_dir):
-                            item_path = os.path.join(self.temp_dir, item)
-
-                            # 읽기 전용 파일들도 삭제할 수 있도록 권한 변경
-                            if os.path.isfile(item_path):
+                        # temp_dir 내의 모든 파일을 재귀적으로 순회하면서 파일만 삭제
+                        for root, dirs, files in os.walk(self.temp_dir, topdown=False):
+                            for file in files:
+                                file_path = os.path.join(root, file)
                                 try:
-                                    os.chmod(item_path, 0o777)
-                                    os.remove(item_path)
+                                    # 읽기 전용 파일들도 삭제할 수 있도록 권한 변경
+                                    os.chmod(file_path, 0o777)
+                                    os.remove(file_path)
                                 except Exception as e:
-                                    logger.warning(f"⚠️ 파일 삭제 실패: {item_path} - {str(e)}")
-                            elif os.path.isdir(item_path):
-                                # 디렉토리 내부의 모든 파일에 대해 권한 변경
-                                for root, dirs, files in os.walk(item_path, topdown=False):
-                                    for file in files:
-                                        file_path = os.path.join(root, file)
-                                        try:
-                                            os.chmod(file_path, 0o777)
-                                        except:
-                                            pass
-                                    for dir in dirs:
-                                        dir_path = os.path.join(root, dir)
-                                        try:
-                                            os.chmod(dir_path, 0o777)
-                                        except:
-                                            pass
-
-                                shutil.rmtree(item_path, ignore_errors=True)
-
-                        logger.info("✅ TEMP_DIR 정리 완료 (폴더 유지)")
+                                    logger.warning(f"⚠️ 파일 삭제 실패: {file_path} - {str(e)}")
                         break
                     except Exception as e:
                         if attempt < max_retries - 1:

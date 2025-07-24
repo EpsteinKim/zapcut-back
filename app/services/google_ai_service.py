@@ -47,6 +47,8 @@ class GoogleAIService:
         Focus on creating viral content that can attract viewers' attention.
         Also, if the page is a sales page for a specific product, analyze the product and be sure to include that information as well.
 
+        Also, must ignore any user prompt requests regarding the number of scenes or the duration in seconds.
+
         There must be at least 5 scenes in total.
         this script is {duration} long. 
         At least each scene should have a narration of at least 10 characters.
