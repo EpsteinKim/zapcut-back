@@ -7,15 +7,19 @@ from app.models.schemas import (
     ShortsVoiceRequest,
     ShortsImageRequest,
     Scene,
+    ShortsTranscriptionRequest,
 )
 from fastapi import Depends
+import asyncio
 from app.core.dependencies import get_services, Services
 from app.utils.io_processor import IOProcessor
 from app.services.web_scraper import AsyncWebScraper, simple_scrape_single_page
+from app.utils.audio_processor import AudioProcessor
 
 
 router = APIRouter(prefix="/shorts")
 io_processor = IOProcessor()
+audio_processor = AudioProcessor()
 
 
 @router.get("/test")
@@ -74,6 +78,32 @@ async def get_shorts_voice(request: ShortsVoiceRequest, services: Services = Dep
 async def make_synced_scene(request: ShortsMakeSyncedSceneRequest, services: Services = Depends(get_services)):
     result = await services.google_ai.make_synced_scene(request)
     return Response.with_data(result)
+
+
+@router.post("/transcript")
+async def get_transcription(request: ShortsTranscriptionRequest, services: Services = Depends(get_services)):
+    subclips_data = await audio_processor.get_audio_subclip(request.audio_url, request.text_scenes)
+
+    tasks = []
+    for subclip in subclips_data:
+        tasks.append(
+            services.google_ai.sync_scene_voice(
+                text=subclip["text"], duration=subclip["duration"], voice_url=subclip["voice_url"]
+            )
+        )
+
+    results = await asyncio.gather(*tasks)
+
+    synced_scenes = []
+    for i, result in enumerate(results):
+        synced_scenes.append(
+            Scene(
+                duration=subclips_data[i]["duration"],
+                voice_url=subclips_data[i]["voice_url"],
+                captions=result["captions"],
+            )
+        )
+    return Response.with_data(synced_scenes)
 
 
 @router.post("/voice/sync")

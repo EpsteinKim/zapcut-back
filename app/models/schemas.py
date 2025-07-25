@@ -145,10 +145,9 @@ class CaptionInfo(BaseModel):
 
 
 class Scene(BaseModel):
-    text: str | None = None  # 처음에 전체 싱크에서만 씀
     duration: float | None = None
     captions: List[CaptionInfo] | None = None
-    description: str
+    description: str | None = None
     video_url: str | None = None
     image_url: str | None = None
     voice_url: str | None = None
@@ -178,6 +177,11 @@ class ShortsVoiceRequest(BaseModel):
 class ShortsMakeSyncedSceneRequest(BaseModel):
     scenes: list[Scene]
     audio_url: str
+
+
+class ShortsTranscriptionRequest(BaseModel):
+    audio_url: str
+    text_scenes: list[str]
 
 
 class ShortsVideoRequest(BaseModel):

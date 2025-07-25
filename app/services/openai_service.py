@@ -18,10 +18,15 @@ class OpenAIService:
         self.client = OpenAI(api_key=settings.openai_api_key)
         self.io_processor = IOProcessor()
 
-    async def create_transcription(self, audio_url: str):
-        audio_file = await self.io_processor.download_file(audio_url)
-        with open(audio_file, "rb") as audio_file:
+    async def create_transcription(self, audio_url: str, text: str, duration: float):
+        audio_path = await self.io_processor.download_file(audio_url)
+        prompt = f"""
+            text: {text}
+            duration: {duration}
+        """
+        with open(audio_path, "rb") as audio_file:
             transcription = self.client.audio.transcriptions.create(
+                prompt="",
                 model="whisper-1",
                 file=audio_file,
                 response_format="verbose_json",

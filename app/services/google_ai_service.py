@@ -7,10 +7,18 @@ from io import BytesIO
 from google import genai
 from pydantic import BaseModel
 from pydub import AudioSegment
+import librosa
+import numpy as np
 
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
-from app.models.schemas import ShortsMakeSyncedSceneRequest, TTSVoiceModel, Scene, CaptionInfo
+from app.models.schemas import (
+    ShortsMakeSyncedSceneRequest,
+    TTSVoiceModel,
+    Scene,
+    CaptionInfo,
+    ShortsTranscriptionRequest,
+)
 from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
@@ -49,6 +57,7 @@ class GoogleAIService:
 
         Also, must ignore any user prompt requests regarding the number of scenes or the duration in seconds.
         The maximum number of scenes is 8.
+        Each scene's text length must be 100 characters or less
 
         There must be at least 5 scenes in total.
         At least each scene should have a narration of at least 10 characters.
@@ -95,6 +104,7 @@ class GoogleAIService:
             contents=[string],
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
                 max_output_tokens=2048,
             ),
         )
@@ -153,6 +163,7 @@ class GoogleAIService:
         - Speak at a fast and energetic pace suitable for YouTube Shorts (about 1.3x ~ 1.5x normal speed)
         - Keep the tone engaging and dynamic
         - Maintain clear pronunciation even at faster speed
+        
         """
         if duration:
             prompt += f"Read the text within the specified duration of {duration} seconds, even if it means speaking faster than normal. The timing is crucial - do not exceed the duration under any circumstances. Adjust your speaking pace to ensure the entire text is delivered within the time limit."
@@ -165,7 +176,7 @@ class GoogleAIService:
                     contents=prompt,
                     config=genai.types.GenerateContentConfig(
                         response_modalities=["AUDIO"],
-                        temperature=voice_temperature,
+                        temperature=0,
                         speech_config=genai.types.SpeechConfig(
                             voice_config=genai.types.VoiceConfig(
                                 prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
@@ -199,232 +210,73 @@ class GoogleAIService:
                     raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
                 await asyncio.sleep(1)
 
-    async def make_synced_scene(self, request: ShortsMakeSyncedSceneRequest) -> str:
+    async def make_synced_scene(self, request: ShortsTranscriptionRequest):
+        subclips_data = await self.audio_processor.get_audio_subclip(request.audio_url, request.text_scenes)
+
+        adjusted_scenes = []
+        for i, subclip_data in enumerate(subclips_data):
+            adjusted_scenes.append(
+                Scene(
+                    text=request.text_scenes[i],
+                    duration=subclip_data["duration"],
+                    voice_url=subclip_data["voice_url"],
+                )
+            )
+
+        # sync_scene_voice 함수를 사용하여 캡션 동기화
+        synced_scenes = await self.sync_scene_voice(adjusted_scenes)
+
+        return synced_scenes
+
+    async def sync_scene_voice(self, text: str, duration: float, voice_url: str) -> str:
         class SimpleScene(BaseModel):
             duration: float
             captions: list[CaptionInfo]
-            description: str
-
-        audio_path = await self.io_processor.download_file(request.audio_url)
-        audio_duration = self.audio_processor.get_audio_duration(audio_path)
-        print(audio_duration)
+            voice_url: str
 
         system_prompt = f"""
-            Generate a transcript of the speech.
-            - All times must use 0.01 second precision
-            - Each scene's timing starts from 0.00
-            - Scene boundaries:
-              * First, identify speech segments based on user's prompt
-              * When silence is detected between speech segments:
-                - Find the exact middle point of the silence
-                - Use this point as the boundary to split scenes
-              * Timing must be extremely precise as audio will be segmented based on these boundaries
-              * Each scene's boundaries must align perfectly with the audio segments
-            - Each segment's start and end must be accurately determined and output with 0.01s precision
-            - At least 0.02 second gap between segments
+            You are a professional YouTube Shorts caption generator. Create precise captions that sync with the provided voice audio.
             
-            - Split captions like YouTube Shorts style:
-              * Short and impactful phrases (5~8 characters)
-              * Natural break points in speech
-              * One key point per caption
-              * Maintain viewing rhythm
-            - Each caption's start_time and end_time are RELATIVE to its scene's start (0.00)
-            - Keep 0.02s minimum gap between captions
-            - Maximum 20 Korean characters per caption
-            - MUST match exact audio timing with speech
-            - Do not add captions when there is no speech
-            - Start caption exactly when speech begins
-            - End caption exactly when speech ends
-
-            - Total scene duration must be {audio_duration}seconds
+            STRICT REQUIREMENTS:
+            1. Each caption text must be EXACTLY 20 characters or less (including spaces and punctuation)
+            2. Each caption must contain at least 4 meaningful characters (excluding spaces)
+            3. If a caption would be too short (less than 4 non-space characters), combine it intelligently with adjacent text
+            4. The total duration of all captions MUST exactly match the provided duration - this is non-negotiable
+            5. ALL text from the user's input must be included across the captions - no text should be omitted
+            6. Captions should feel natural and readable for YouTube Shorts viewers
+            7. Break text at natural speech pauses and word boundaries when possible
+            8. Timing should feel natural - don't rush or drag captions unnaturally
+            9. REMOVE all commas(,), periods(.), and emojis from the captions, EXCEPT when they are part of a number (e.g., decimal points like 3.14 or thousand separators like 1,000 must be preserved).
+            10. There must be at least a 0.02 second gap between the end of one caption and the start of the next caption. No captions should overlap in time.
+            
+            YOUTUBE SHORTS OPTIMIZATION:
+            - Prioritize readability on mobile screens
+            - Use natural Korean speech rhythm for timing
+            - Ensure smooth visual flow between captions
+            - Consider viewer attention span and reading speed
         """
 
-        with open(audio_path, "rb") as audio_file:
-            audio_bytes = audio_file.read()
+        user_prompt = f"""
+            text: {text}
+            duration: {duration}
+        """
 
-            response = await self.client.aio.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=[
-                    f"""
-                    Scenes to process:
-                    {
-                        ''.join([f'Scene {i+1}: {scene.text}\n' for i, scene in enumerate(request.scenes)])
-                    }
-                    """,
-                    genai.types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3"),
-                ],
-                config=genai.types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-                    response_schema=list[SimpleScene],
-                    response_mime_type="application/json",
-                ),
-            )
-
-        adjusted_scenes_data = json.loads(response.text)
-
-        print(adjusted_scenes_data)
-        # 딕셔너리를 Scene 객체로 변환
-        adjusted_scenes = []
-        for scene_data in adjusted_scenes_data:
-            scene = Scene(**scene_data)
-            adjusted_scenes.append(scene)
-
-        # 각 씬의 지속시간에 맞게 오디오를 서브클립하고 voice_url 설정
-
-        # 씬이 하나만 있는 경우 원본 오디오를 바로 사용
-        if len(adjusted_scenes) == 1:
-            adjusted_scenes[0].voice_url = request.audio_url
-        else:
-            # 여러 씬이 있는 경우 서브클립 진행
-            # 원본 오디오 로드
-            audio = AudioSegment.from_file(audio_path)
-
-            # 각 씬에 대해 오디오 서브클립 생성
-        for i, scene in enumerate(adjusted_scenes):
-            # duration이 None인 경우 마지막 자막의 끝나는 시간으로 설정
-            if scene.duration is None:
-                scene.duration = scene.captions[-1].end_time
-
-            # 씬의 시작 시간과 끝 시간 계산
-            start_time = 0
-            for j in range(i):
-                if adjusted_scenes[j].duration is None:
-                    adjusted_scenes[j].duration = adjusted_scenes[j].captions[-1].end_time
-                start_time += adjusted_scenes[j].duration
-
-            end_time = start_time + scene.duration
-
-            # 시간을 밀리초로 변환
-            start_ms = int(start_time * 1000)
-            end_ms = int(end_time * 1000)
-
-            # 오디오 서브클립 생성
-            scene_audio = audio[start_ms:end_ms]
-
-            # BytesIO로 변환하여 S3 업로드
-            audio_buffer = BytesIO()
-            scene_audio.export(audio_buffer, format="mp3")
-            audio_buffer.seek(0)
-
-            # S3에 업로드하고 URL 반환
-            voice_url = await self.io_processor.upload_file_s3(file_data=audio_buffer, ext="mp3")
-            scene.voice_url = voice_url
-
-        return adjusted_scenes
-
-    async def sync_scene_voice(self, request: list[Scene]) -> str:
-        if any(scene.voice_url is None for scene in request):
-            raise ServerException("씬에 보이스 URL이 없습니다.")
-
-        voice_urls = [scene.voice_url for scene in request if scene.voice_url is not None]
-
-        audio_segments = []
-        downloaded_paths = []
-
-        for i, voice_url in enumerate(voice_urls):
-            voice_path = await self.io_processor.download_file(voice_url)
-            downloaded_paths.append(voice_path)
-
-            audio_segment = AudioSegment.from_file(voice_path)
-
-            scene_duration_ms = int(request[i].duration * 1000)
-            audio_duration_ms = len(audio_segment)
-
-            if audio_duration_ms < scene_duration_ms:
-                silence_duration = scene_duration_ms - audio_duration_ms
-                silence = AudioSegment.silent(duration=silence_duration)
-                audio_segment = audio_segment + silence
-
-            audio_segments.append(audio_segment)
-
-        combined_audio = AudioSegment.empty()
-        for audio_segment in audio_segments:
-            combined_audio += audio_segment
-
-        combined_audio_path = os.path.join(self.temp_dir, f"combined_audio_{uuid.uuid4()}.mp3")
-        combined_audio.export(combined_audio_path, format="mp3")
-
-        for path in downloaded_paths:
-            try:
-                os.remove(path)
-            except:
-                pass
-
-        all_caption_texts = []
-        scene_boundaries = []
-        cumulative_time = 0.0
-
-        for scene in request:
-            scene_start = cumulative_time
-            scene_end = cumulative_time + scene.duration
-            scene_boundaries.append((scene_start, scene_end))
-
-            for caption in scene.captions:
-                all_caption_texts.append(caption.text)
-            cumulative_time += scene.duration
-
-        audio_file = self.client.files.upload(file=combined_audio_path)
+        voice_path = await self.io_processor.download_file(voice_url)
+        with open(voice_path, "rb") as f:
+            voice_data = f.read()
+            voice_file = genai.types.Part.from_bytes(data=voice_data, mime_type="audio/mp3")
 
         response = await self.client.aio.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                f"""
-                Please analyze the provided audio and create subtitle timing for the following texts.
-                Listen to the audio and determine the appropriate start_time and end_time for each text based on when they are spoken.
-                Return the captions with proper timing that matches the audio.
-                Please adjust the timing in 0.1 second increments.
-                
-                
-                Caption texts in order:
-                {json.dumps(all_caption_texts, ensure_ascii=False)}
-                """,
-                audio_file,
-            ],
+            contents=[user_prompt, voice_file],
             config=genai.types.GenerateContentConfig(
-                response_schema=list[CaptionInfo],
+                system_instruction=system_prompt,
                 response_mime_type="application/json",
+                response_schema=SimpleScene,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
             ),
         )
 
-        try:
-            os.remove(combined_audio_path)
-        except:
-            pass
+        print(json.loads(response.text))
 
-        adjusted_captions = json.loads(response.text)
-
-        result_scenes = []
-        for i, (scene, (scene_start, scene_end)) in enumerate(zip(request, scene_boundaries)):
-            scene_captions = []
-
-            for caption_data in adjusted_captions:
-                caption_start = caption_data["start_time"]
-                caption_end = caption_data["end_time"]
-
-                if scene_start <= caption_start < scene_end:
-                    relative_start = caption_start - scene_start
-                    relative_end = caption_end - scene_start
-
-                    relative_start = max(0, min(relative_start, scene.duration))
-                    relative_end = max(relative_start, min(relative_end, scene.duration))
-
-                    scene_captions.append(
-                        {
-                            "text": caption_data["text"],
-                            "start_time": round(relative_start, 1),
-                            "end_time": round(relative_end, 1),
-                        }
-                    )
-
-            result_scene = {
-                "duration": scene.duration,
-                "captions": scene_captions,
-                "description": scene.description,
-                "video_url": scene.video_url,
-                "image_url": scene.image_url,
-                "voice_url": scene.voice_url,
-            }
-            result_scenes.append(result_scene)
-
-        return result_scenes
+        return json.loads(response.text)

@@ -42,7 +42,7 @@ class VideoProcessor:
             codec="libx264",
             audio_codec="aac",
             threads=4,
-            fps=24,
+            fps=30,
             audio_fps=24000,
             logger=None,  # MoviePy 로그 비활성화
             ffmpeg_params=["-loglevel", "quiet"],  # FFmpeg 로그 비활성화

@@ -58,7 +58,7 @@ class TextProcessor:
 
     def sequential_text_clips(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         text_clips = []
-        frame_interval = 2 / 24.0
+        frame_interval = 2 / 30.0
         final_display_time = 0.2
 
         text = caption.text
@@ -149,8 +149,6 @@ class TextProcessor:
     def smooth_pop_text_clip(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         start_time = current_time + caption.start_time
         total_duration = caption.end_time - caption.start_time
-        animation_duration = 0.2
-
         text_clips = []
 
         # 0.2초 동안의 부드러운 애니메이션 키프레임
@@ -162,11 +160,10 @@ class TextProcessor:
             (0.08, 1.0),  # 0.08초: 1.0배
             (0.10, 1.05),  # 0.10초: 1.05배
             (0.12, 1.1),  # 0.12초: 1.1배 (최대)
-            (0.14, 1.05),  # 0.14초: 1.05배
-            (0.16, 1.05),  # 0.16초: 1.05배
-            (0.18, 1.05),  # 0.18초: 1.05배
+            (0.16, 1.05),  # 0.16초: 1.0배
             (0.20, 1.0),  # 0.20초: 1.0배 (최종)
         ]
+        animation_duration = keyframes[-1][0]
 
         # 애니메이션 키프레임 생성 (0.2초 동안만)
         for i, (time_offset, scale) in enumerate(keyframes):
