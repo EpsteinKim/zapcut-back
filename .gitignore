@@ -52,6 +52,8 @@ static/
 temp/
 uploads/
 
+.cursorrules
+
 # Test coverage
 .coverage
 htmlcov/

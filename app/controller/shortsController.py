@@ -30,34 +30,15 @@ async def get_page_image(url: str, services: Services = Depends(get_services)):
     return Response.with_data(image_url)
 
 
-# @router.post("/scripts")
-# async def get_shorts_scripts(request: ShortsScriptRequest, services: Services = Depends(get_services)):
-#     if request.page_image_url:
-#         video_script = await services.google_ai.generate_shorts_scripts(
-#             duration=f"{request.duration}s",
-#             user_prompt=request.user_prompt,
-#             page_image_url=request.page_image_url,
-#         )
-#     else:
-#         video_script = await services.google_ai.generate_shorts_scripts(
-#             duration=f"{request.duration}s",
-#             user_prompt=request.user_prompt,
-#         )
-
-#     return Response.with_data(video_script)
-
-
 @router.post("/initial-scenes")
 async def get_shorts_script_string(request: ShortsScriptRequest, services: Services = Depends(get_services)):
     if request.page_html:
         video_script = await services.google_ai.generate_shorts_script_string(
-            duration=f"{request.duration}s",
             page_html=request.page_html,
             user_prompt=request.user_prompt,
         )
     else:
         video_script = await services.google_ai.generate_shorts_script_string(
-            duration=f"{request.duration}s",
             user_prompt=request.user_prompt,
         )
 
@@ -80,9 +61,9 @@ async def get_shorts_image(request: ShortsImageRequest, services: Services = Dep
 async def get_shorts_voice(request: ShortsVoiceRequest, services: Services = Depends(get_services)):
     output_path = await services.google_ai.genereate_text_to_speech(
         text=request.text,
-        duration=request.duration,
         voice_model=request.voice_model,
         voice_temperature=request.voice_temperature,
+        duration=request.duration,
         speed_multiplier=1.0,
     )
     download_url = await io_processor.upload_file_s3(file_path=output_path, ext="mp3")

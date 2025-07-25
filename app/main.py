@@ -8,7 +8,7 @@ from app.core.config import TEMP_DIR
 from app.utils.cleanup_handler import initialize_cleanup_handler
 
 import logging
-from app.controller import shortsController, crawlingController, proxyController
+from app.controller import shortsController, crawlingController, proxyController, testController
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.timeout_middleware import TimeoutMiddleware
@@ -33,10 +33,11 @@ app.add_exception_handler(RequestValidationError, exception_handler)
 app.add_exception_handler(HTTPException, exception_handler)
 app.add_exception_handler(Exception, exception_handler)
 
+
 app.include_router(shortsController.router, prefix="/api/v1", tags=["shortsController"])
 app.include_router(crawlingController.router, prefix="/api/v1", tags=["crawlingController"])
 app.include_router(proxyController.router, prefix="/api/v1", tags=["ProxyController"])
-
+app.include_router(testController.router, prefix="/api/v1", tags=["testController"])
 
 # 로거 설정
 logging.basicConfig(level=logging.WARNING)

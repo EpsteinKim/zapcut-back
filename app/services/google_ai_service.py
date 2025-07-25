@@ -8,7 +8,6 @@ from google import genai
 from pydantic import BaseModel
 from pydub import AudioSegment
 
-
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
 from app.models.schemas import ShortsMakeSyncedSceneRequest, TTSVoiceModel, Scene, CaptionInfo
@@ -16,6 +15,7 @@ from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
 from app.utils.os_processor import get_temp_dir
+from app.utils.audio_processor import AudioProcessor
 
 
 class GoogleScheme(BaseModel):
@@ -38,10 +38,10 @@ class GoogleAIService:
         settings = get_settings()
         self.client = genai.Client(api_key=settings.google_ai_api_key)
         self.io_processor = IOProcessor()
-        # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
+        self.audio_processor = AudioProcessor()
         self.temp_dir = get_temp_dir("google_ai_service")
 
-    async def generate_shorts_script_string(self, duration: str, user_prompt: str, page_html: str | None = None):
+    async def generate_shorts_script_string(self, user_prompt: str, page_html: str | None = None):
         system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
         Your task is to create engaging content for a YouTube Shorts video.
         Focus on creating viral content that can attract viewers' attention.
@@ -51,7 +51,6 @@ class GoogleAIService:
         The maximum number of scenes is 8.
 
         There must be at least 5 scenes in total.
-        this script is {duration} long. 
         At least each scene should have a narration of at least 10 characters.
         Write in a friendly, conversational tone in Korean.
         And the scene description should only be the scene description, excluding the music description.
@@ -72,7 +71,7 @@ class GoogleAIService:
         content = [user_prompt]
 
         response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash-lite",
             contents=content,
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -83,79 +82,6 @@ class GoogleAIService:
 
         return json.loads(response.text)
 
-    # async def generate_shorts_scripts(
-    #     self,
-    #     duration: str,
-    #     title: str | None = None,
-    #     page_image_url: str | None = None,
-    #     description: str | None = None,
-    # ):
-    #     system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
-    #     Your task is to create engaging content for a YouTube Shorts video.
-    #     You should create content that is optimized for short-form video format and can be visualized using Stable Diffusion.
-    #     Focus on creating viral-worthy content that will engage viewers.
-    #     And if a photo is uploaded together, please extract detailed page information based on that photo and include it in the information as well.
-    #     And if the page is a sales page for a specific product, please analyze the product and include it in the information as well.
-
-    #     For each time segment:
-    #     - Maintain a natural flow of the overall story
-    #     - Keep scenes short and make quick transitions
-    #     - Ensure continuous audio flow without gaps
-    #     - Overlap captions slightly to maintain audio continuity
-    #     - Adjust timing to prevent audio silence between captions
-    #     - Use natural speech patterns that flow smoothly
-    #     - Include 3 or more captions per scene except for the first scene
-    #     - Don't write long captions at once, break them into multiple captions
-    #     - Make screen transitions as fast as possible
-    #     - Write in a friendly, conversational tone
-    #     - Write in Korean (must be Korean)
-    #     - Write descriptions in Korean as well (must be Korean)
-    #     - Each caption should be no more than 20 characters
-    #     - There should be at least 5 scenes
-    #     - Each scene's first caption should start at 0 seconds
-    #     - TTS voice speed is 1.2x, so please adjust the caption timing accordingly. Normally, one voice is finished in 0.6 second.
-    #     - Write appropriate video content descriptions for each scene
-    #     - Consider appropriate timing between captions for TTS
-    #     - Video length (must match exactly): {duration}s
-    #     - Do not use emojis
-    #     - Caption timing is relative to scene duration, but the sum of caption durations does not need to equal the sum of scene durations
-    #     """
-
-    #     user_prompt = f"""Create a YouTube Shorts video script based on the following content:
-
-    #     """
-
-    #     if title:
-    #         user_prompt += f"""제목: {title}
-    #         """
-
-    #     if description:
-    #         user_prompt += f"""설명: {description}
-    #         """
-
-    #     user_prompt += f"""
-    #         이것들을 바탕으로 영상 스크립트를 작성해주세요.
-    #     """
-
-    #     content = [user_prompt]
-    #     if page_image_url:
-    #         image_path = await self.io_processor.download_file(page_image_url)
-    #         with open(image_path, "rb") as image_file:
-    #             image_bytes = image_file.read()
-    #         content.insert(0, genai.types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
-
-    #     response = await self.client.aio.models.generate_content(
-    #         model="gemini-2.5-flash",
-    #         contents=content,
-    #         config=genai.types.GenerateContentConfig(
-    #             system_instruction=system_prompt,
-    #             response_mime_type="application/json",
-    #             response_schema=GoogleScheme,
-    #         ),
-    #     )
-
-    #     return json.loads(response.text)
-
     def translate(self, string: str, language: str):
         system_prompt = f"""
         Your task is to translate the input text into only {language} while maintaining the visual elements and composition details.
@@ -165,7 +91,7 @@ class GoogleAIService:
         """
 
         response = self.client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[string],
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
@@ -217,16 +143,19 @@ class GoogleAIService:
     async def genereate_text_to_speech(
         self,
         text: str,
-        duration: float,
         voice_model: TTSVoiceModel,
         voice_temperature: float,
         speed_multiplier: float,
+        duration: float | None = None,
     ):
         prompt = f"""
-        You are a YouTube Shorts narrator. Your task is to read the given text within the specified duration while maintaining a natural and engaging tone. Focus on clear pronunciation and appropriate pacing to ensure the content is delivered effectively within the time constraint.
-        {f"You must read the text within the specified duration of {duration} seconds, even if it means speaking faster than normal. The timing is crucial - do not exceed the duration under any circumstances. Adjust your speaking pace to ensure the entire text is delivered within the time limit." if duration is not None else ""}
-        The text is: {text}
+        text: {text}
+        - Speak at a fast and energetic pace suitable for YouTube Shorts (about 1.3x ~ 1.5x normal speed)
+        - Keep the tone engaging and dynamic
+        - Maintain clear pronunciation even at faster speed
         """
+        if duration:
+            prompt += f"Read the text within the specified duration of {duration} seconds, even if it means speaking faster than normal. The timing is crucial - do not exceed the duration under any circumstances. Adjust your speaking pace to ensure the entire text is delivered within the time limit."
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -277,71 +206,64 @@ class GoogleAIService:
             description: str
 
         audio_path = await self.io_processor.download_file(request.audio_url)
+        audio_duration = self.audio_processor.get_audio_duration(audio_path)
+        print(audio_duration)
 
-        audio_file = self.client.files.upload(file=audio_path)
+        system_prompt = f"""
+            Generate a transcript of the speech.
+            - All times must use 0.01 second precision
+            - Each scene's timing starts from 0.00
+            - Scene boundaries:
+              * First, identify speech segments based on user's prompt
+              * When silence is detected between speech segments:
+                - Find the exact middle point of the silence
+                - Use this point as the boundary to split scenes
+              * Timing must be extremely precise as audio will be segmented based on these boundaries
+              * Each scene's boundaries must align perfectly with the audio segments
+            - Each segment's start and end must be accurately determined and output with 0.01s precision
+            - At least 0.02 second gap between segments
+            
+            - Split captions like YouTube Shorts style:
+              * Short and impactful phrases (5~8 characters)
+              * Natural break points in speech
+              * One key point per caption
+              * Maintain viewing rhythm
+            - Each caption's start_time and end_time are RELATIVE to its scene's start (0.00)
+            - Keep 0.02s minimum gap between captions
+            - Maximum 20 Korean characters per caption
+            - MUST match exact audio timing with speech
+            - Do not add captions when there is no speech
+            - Start caption exactly when speech begins
+            - End caption exactly when speech ends
 
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[
-                f"""
-                Please analyze the provided audio and create subtitle timing for the following texts.
-                Listen to the audio and determine the appropriate start_time and end_time for each text based on when they are spoken.
-                Return the captions with proper timing that matches the audio.
-                Please adjust the timing in 0.1 second increments.
-                
-                Please break down each scene into fine-grained subtitle format and synchronize them.
-                If possible, try to make each scene have at least 4 subtitles in the list.
-                All caption start and end times must not overlap, and must have at least 0.1 second gap.
-                each caption should be no more than 20 characters in Korean.
+            - Total scene duration must be {audio_duration}seconds
+        """
 
-                caption start and end times are relative values within the scene duration.
-                duration is must be the sum of the caption durations relative to the audio duration.
-                caption is must be written in a way that is easy to read in a short-form video.
-                (MUST) total duration is must be longer than the audio duration.
-                Each scene must have a duration, and this time is a relative value.
+        with open(audio_path, "rb") as audio_file:
+            audio_bytes = audio_file.read()
 
-                
-                like this: {{[
-                    {{
-                        "duration": 2.0,
-                        "captions": [
-                            {{
-                                "text": "Hello",
-                                "start_time": 0.0,
-                                "end_time": 1.0
-                            }},
-                            {{
-                                "text": "Hello",
-                                "start_time": 1.0,
-                                "end_time": 2.0
-                            }},
-                    }},
-                    {{
-                        "duration": 2.0,  # (Actually between 2 and 4 seconds)
-                        "captions": [
-                            {{
-                                "text": "Hello",
-                                "start_time": 0.0,
-                                "end_time": 2.0  # (This is also a relative time within the duration)
-                            }},
-                        ]
-                    }}
-                }}
-
-
-                Caption texts in order:
-                {json.dumps([scene.text for scene in request.scenes], ensure_ascii=False)}
-                """,
-                audio_file,
-            ],
-            config=genai.types.GenerateContentConfig(
-                response_schema=list[SimpleScene],
-                response_mime_type="application/json",
-            ),
-        )
+            response = await self.client.aio.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[
+                    f"""
+                    Scenes to process:
+                    {
+                        ''.join([f'Scene {i+1}: {scene.text}\n' for i, scene in enumerate(request.scenes)])
+                    }
+                    """,
+                    genai.types.Part.from_bytes(data=audio_bytes, mime_type="audio/mp3"),
+                ],
+                config=genai.types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
+                    response_schema=list[SimpleScene],
+                    response_mime_type="application/json",
+                ),
+            )
 
         adjusted_scenes_data = json.loads(response.text)
 
+        print(adjusted_scenes_data)
         # 딕셔너리를 Scene 객체로 변환
         adjusted_scenes = []
         for scene_data in adjusted_scenes_data:

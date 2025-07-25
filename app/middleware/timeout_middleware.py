@@ -11,6 +11,7 @@ class TimeoutMiddleware(BaseHTTPMiddleware):
         # 경로별 타임아웃 설정 (초 단위)
         self.route_timeouts = {
             "/api/v1/shorts/video": 60 * 5,  # 비디오 생성 - 3분
+            "/api/v1/shorts/synced-scene": 60 * 3,  # 동기화된 장면 생성 - 3분
             "/api/v1/shorts/script": 120,  # 스크립트 생성 - 2분
             "/api/v1/shorts/image": 120,  # 이미지 생성 - 2분
             "/api/v1/shorts/voice": 120,  # 음성 생성 - 2분

@@ -62,6 +62,9 @@ tmp/
 *.tmp
 *.temp
 
+#cursor
+.cursorrules
+
 # Environment files (보안상 제외)
 .env
 .env.local

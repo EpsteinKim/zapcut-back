@@ -31,14 +31,6 @@ def cleanup_old_files(dir_path: str, max_age_seconds: int = 3600):
             except Exception as e:
                 logger.error(f"❌ 파일 처리 중 오류 발생 {file_path}: {e}")
 
-        for dir_name in dirs:
-            dir_path_full = os.path.join(root, dir_name)
-            try:
-                if not os.listdir(dir_path_full):
-                    os.rmdir(dir_path_full)
-            except Exception:
-                pass
-
     if deleted_count > 0:
         logger.info(f"🧹 {dir_path}에서 오래된 파일 {deleted_count}개 정리 완료")
 

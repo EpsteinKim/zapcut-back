@@ -162,7 +162,6 @@ class SceneAlter(BaseModel):
 class ShortsScriptRequest(BaseModel):
     page_html: str | None = None
     user_prompt: str | None = None
-    duration: int
 
 
 class ShortsImageRequest(BaseModel):
@@ -171,7 +170,7 @@ class ShortsImageRequest(BaseModel):
 
 class ShortsVoiceRequest(BaseModel):
     text: str
-    duration: float
+    duration: float | None = None
     voice_model: TTSVoiceModel = VoiceModelConstants.Kore
     voice_temperature: float = 0.3
 

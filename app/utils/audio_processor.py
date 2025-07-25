@@ -16,3 +16,11 @@ class AudioProcessor:
         level_up_audio_clip = AudioFileClip(level_up_sound_path)
         level_up_audio_clip = level_up_audio_clip.with_start(current_time).with_duration(0.5).with_volume_scaled(0.3)
         return level_up_audio_clip
+
+    def get_audio_duration(self, audio_path: str) -> float:
+        """오디오 파일의 길이를 초 단위로 반환합니다."""
+        try:
+            with AudioFileClip(audio_path) as audio:
+                return audio.duration
+        except Exception as e:
+            raise Exception(f"오디오 길이 측정 실패: {str(e)}")
