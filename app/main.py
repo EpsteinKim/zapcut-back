@@ -12,11 +12,20 @@ from app.controller import shortsController, crawlingController, proxyController
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.timeout_middleware import TimeoutMiddleware
+from app.core.database import create_db_and_tables
+from app.entity import user, shorts, point_transaction
 
 
 app = FastAPI(
     title="ZAPCUT API",
 )
+
+
+# 애플리케이션 시작 시 데이터베이스 테이블 생성
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+
 
 # 타임아웃 미들웨어 추가 (1분 = 60초)
 app.add_middleware(TimeoutMiddleware)

@@ -23,12 +23,14 @@ else:
 class Settings(BaseSettings):
     env: str = "dev"  # 기본값을 development로 설정
     openai_api_key: str
-    typecast_api_key: str
     google_ai_api_key: str
 
     proxy: str
     unlock_proxy: str
     bright_data_api_key: str
+
+    # database
+    database_url: str
 
     class Config:
         env_file = str(ROOT_DIR / ".env")

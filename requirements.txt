@@ -100,7 +100,7 @@ joblib==1.5.1
     #   scikit-learn
 lazy-loader==0.4
     # via librosa
-librosa==0.10.1
+librosa==0.11.0
     # via -r requirements.in
 llvmlite==0.44.0
     # via numba
@@ -185,6 +185,8 @@ pydub==0.25.1
     # via -r requirements.in
 pyee==13.0.0
     # via playwright
+pymysql==1.1.1
+    # via -r requirements.in
 pyproject-hooks==1.2.0
     # via
     #   build

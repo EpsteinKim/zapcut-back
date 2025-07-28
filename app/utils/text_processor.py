@@ -58,7 +58,7 @@ class TextProcessor:
 
     def sequential_text_clips(self, caption: CaptionInfo, current_time: float) -> List[TextClip]:
         text_clips = []
-        frame_interval = 2 / 30.0
+        frame_interval = 2 / 24.0
         final_display_time = 0.2
 
         text = caption.text
