@@ -23,7 +23,7 @@ from app.utils.io_processor import IOProcessor
 from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
 from pydub import AudioSegment
 from app.utils.os_processor import get_temp_dir
-from app.utils.audio_processor import AudioProcessor
+from app.utils.video.audio_processor import AudioProcessor
 
 
 class GoogleScheme(BaseModel):
@@ -49,7 +49,7 @@ class GoogleAIService:
         self.audio_processor = AudioProcessor()
         self.temp_dir = get_temp_dir("google_ai_service")
 
-    async def generate_shorts_script_string(self, user_prompt: str, page_html: str | None = None):
+    async def generate_initial_scenes(self, user_prompt: str, page_html: str | None = None):
         system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
         Your task is to create engaging content for a YouTube Shorts video.
         Focus on creating viral content that can attract viewers' attention.
@@ -58,11 +58,14 @@ class GoogleAIService:
         Also, must ignore any user prompt requests regarding the number of scenes or the duration in seconds.
         The maximum number of scenes is 8.
         Each scene's text length must be 100 characters or less
+        Each scene's description length must be 200 characters or less
 
         There must be at least 5 scenes in total.
         At least each scene should have a narration of at least 10 characters.
         Write in a friendly, conversational tone in Korean.
-        And the scene description should only be the scene description, excluding the music description.
+        Description must be in Korean.
+        And the scene description should serve as a prompt for text-to-image (TTI) generation,  Do not include music descriptions.
+        
         If there is no HTML, do not include imageUrl or videoUrl.
         """
 
@@ -80,12 +83,13 @@ class GoogleAIService:
         content = [user_prompt]
 
         response = await self.client.aio.models.generate_content(
-            model="gemini-2.0-flash-lite",
+            model="gemini-2.5-flash",
             contents=content,
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
                 response_schema=list[InitialScene],
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
             ),
         )
 
@@ -276,7 +280,5 @@ class GoogleAIService:
                 thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
             ),
         )
-
-        print(json.loads(response.text))
 
         return json.loads(response.text)

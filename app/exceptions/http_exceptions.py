@@ -1,5 +1,4 @@
 from fastapi import HTTPException
-from typing import Optional
 import logging
 
 # 로거 설정
@@ -18,7 +17,11 @@ class BaseHTTPException(HTTPException):
     def __init__(self, status_code: int, message: str, data: dict | None = None):
         super().__init__(status_code=status_code, detail=message)
         self.message = message  # 메시지를 별도 속성으로 저장
-        logger.error(f"HTTP {status_code}: {message}")
+
+        # 401 인증 오류는 로그 출력하지 않음 (정상적인 토큰 갱신 플로우)
+        if status_code != 401:
+            logger.error(f"HTTP {status_code}: {message}")
+
         if data is not None:
             self.data = data
 
@@ -26,7 +29,7 @@ class BaseHTTPException(HTTPException):
         return self.message
 
 
-class BadRequestError(BaseHTTPException):
+class BadRequestException(BaseHTTPException):
     """
     클라이언트의 요청이 잘못된 형식이거나 유효하지 않은 데이터를 포함할 때 사용
     예: 필수 필드 누락, 잘못된 데이터 형식, 유효성 검사 실패
@@ -36,7 +39,7 @@ class BadRequestError(BaseHTTPException):
         super().__init__(status_code=400, message=message, data=data)
 
 
-class UnauthorizedError(BaseHTTPException):
+class UnauthorizedException(BaseHTTPException):
     """
     인증이 필요한 리소스에 접근할 때 인증 정보가 없거나 유효하지 않을 때 사용
     예: 로그인하지 않은 사용자의 접근, 만료된 토큰
@@ -46,7 +49,7 @@ class UnauthorizedError(BaseHTTPException):
         super().__init__(status_code=401, message=message, data=data)
 
 
-class ForbiddenError(BaseHTTPException):
+class ForbiddenException(BaseHTTPException):
     """
     인증은 되었지만 해당 리소스에 대한 접근 권한이 없을 때 사용
     예: 일반 사용자가 관리자 전용 기능에 접근 시도
@@ -56,7 +59,7 @@ class ForbiddenError(BaseHTTPException):
         super().__init__(status_code=403, message=message, data=data)
 
 
-class NotFoundError(BaseHTTPException):
+class NotFoundException(BaseHTTPException):
     """
     요청한 리소스가 존재하지 않을 때 사용
     예: 존재하지 않는 사용자 ID로 조회, 삭제된 게시물 접근
@@ -66,7 +69,7 @@ class NotFoundError(BaseHTTPException):
         super().__init__(status_code=404, message=message, data=data)
 
 
-class MethodNotAllowedError(BaseHTTPException):
+class MethodNotAllowedException(BaseHTTPException):
     """
     해당 엔드포인트에서 지원하지 않는 HTTP 메소드로 요청할 때 사용
     예: GET만 지원하는 엔드포인트에 POST 요청
@@ -76,7 +79,7 @@ class MethodNotAllowedError(BaseHTTPException):
         super().__init__(status_code=405, message=message, data=data)
 
 
-class ConflictError(BaseHTTPException):
+class ConflictException(BaseHTTPException):
     """
     요청이 현재 서버의 상태와 충돌할 때 사용
     예: 이미 존재하는 사용자명으로 회원가입, 동시 편집 충돌
@@ -86,7 +89,7 @@ class ConflictError(BaseHTTPException):
         super().__init__(status_code=409, message=message, data=data)
 
 
-class UnprocessableEntityError(BaseHTTPException):
+class UnprocessableEntityException(BaseHTTPException):
     """
     요청은 올바른 형식이지만 의미적으로 처리할 수 없을 때 사용
     예: 유효성 검사 실패, 비즈니스 로직 위반
@@ -96,7 +99,7 @@ class UnprocessableEntityError(BaseHTTPException):
         super().__init__(status_code=422, message=message, data=data)
 
 
-class TooManyRequestsError(BaseHTTPException):
+class TooManyRequestsException(BaseHTTPException):
     """
     클라이언트가 너무 많은 요청을 보냈을 때 사용
     예: API 요청 제한 초과, DDoS 방지
@@ -116,7 +119,7 @@ class ServerException(BaseHTTPException):
         super().__init__(status_code=500, message=message, data=data)
 
 
-class ServiceUnavailableError(BaseHTTPException):
+class ServiceUnavailableException(BaseHTTPException):
     """
     서버가 일시적으로 요청을 처리할 수 없을 때 사용
     예: 서버 유지보수, 과부하 상태

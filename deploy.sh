@@ -6,7 +6,7 @@ init() {
         export DEBIAN_FRONTEND=noninteractive >/dev/null 2>&1
         echo "🔄 Updating system..."
         sudo apt update -y
-        sudo apt upgrade -y
+        sudo apt upgrade -y -o Dpkg::Options::="--force-confold"
         
         # Docker 설치 확인
         if command -v docker >/dev/null 2>&1; then
@@ -24,7 +24,7 @@ init() {
             
             # Docker 설치
             sudo apt update -y
-            sudo apt install -y docker-ce docker-ce-cli containerd.io
+            sudo apt install -y docker-ce docker-ce-cli containerd.io -o Dpkg::Options::="--force-confold"
             
             # Docker 서비스 시작
             sudo systemctl start docker
@@ -87,7 +87,7 @@ EOF
     
     # 프로젝트 파일 전송
     echo "📤 Uploading project files..."
-    rsync -avz --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
+    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
     
     # 원격으로 프로젝트 설정
     ssh -q root@zapcut << 'EOF'
@@ -149,7 +149,7 @@ REMOTE_EOF
 
     # 프로젝트 파일 동기화
     echo "📤 프로젝트 파일 동기화 중..."
-    rsync -avz --exclude='venv' --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
+    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
 
     ssh -q root@zapcut << 'DEPLOY_EOF'
         cd ~/zapcut-back
@@ -426,9 +426,13 @@ logs() {
             echo "🌐 Nginx 로그를 실시간으로 확인합니다... (Ctrl+C로 종료)"
             ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f zapcut-nginx"
             ;;
+        redis)
+            echo "🔴 Redis 로그를 실시간으로 확인합니다... (Ctrl+C로 종료)"
+            ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f zapcut-redis"
+            ;;
         *)
             echo "❌ 잘못된 옵션입니다: $1"
-            echo "사용 가능한 옵션: blue, green, nginx"
+            echo "사용 가능한 옵션: blue, green, nginx, redis"
             exit 1
             ;;
     esac
@@ -521,6 +525,9 @@ case $1 in
             start_nginx
         fi
         ;;
+    redis)
+        docker exec -it zapcut-redis redis-cli
+        ;;
     *)
         echo "Usage: $0 {api|init|check|switch|stop|start|logs}"
         echo ""
@@ -531,7 +538,8 @@ case $1 in
         echo "  switch   - 환경 전환"
         echo "  stop     - API 서비스 중지"
         echo "  start    - API 서비스 시작"
-        echo "  logs     - 실시간 로그 확인 (blue|green|nginx|all)"
+        echo "  nginx    - Nginx 서비스 (start|stop)"
+        echo "  logs     - 실시간 로그 확인 (blue|green|nginx|redis|all)"
         exit 1
         ;;
 esac

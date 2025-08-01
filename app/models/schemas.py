@@ -5,35 +5,10 @@ from fastapi import Query
 
 from app.core.config import BGM_PATH
 
-
-# 제네릭 사용 예시:
-# from typing import TypeVar, Generic
-# T = TypeVar('T')
-# class GenericResponse(BaseModel, Generic[T]):
-#     response: T
-#
-# 사용 예시:
-# response_str = GenericResponse[str](response="안녕하세요")
-# response_int = GenericResponse[int](response=42)
-# response_list = GenericResponse[List[str]](response=["태그1", "태그2"])
-
-# nullable 필드 지정 방법:
-# 1. Optional 사용
-# class Example1(BaseModel):
-#     name: Optional[str] = None
-#
-# 2. Union 사용
-# class Example2(BaseModel):
-#     name: Union[str, None] = None
-#
-# 3. 직접 None 허용
-# class Example3(BaseModel):
-#     name: str | None = None  # Python 3.10 이상
-
 T = TypeVar("T")
 
 
-class Response(BaseModel, Generic[T]):
+class ApiResponse(BaseModel, Generic[T]):
     message: str
     data: T | None = None
 
@@ -42,15 +17,15 @@ class Response(BaseModel, Generic[T]):
     _ERROR_MESSAGE: ClassVar[str] = "처리 중 오류가 발생했습니다."
 
     @classmethod
-    def ok(cls) -> "Response[T]":
-        return cls(message=cls._OK_MESSAGE)
+    def ok(cls, message: str | None = None) -> "ApiResponse[T]":
+        return cls(message=message or cls._OK_MESSAGE)
 
     @classmethod
-    def error(cls, message: str | None = None) -> "Response[T]":
+    def error(cls, message: str | None = None) -> "ApiResponse[T]":
         return cls(message=message or cls._ERROR_MESSAGE)
 
     @classmethod
-    def with_data(cls, data: T, message: str | None = None) -> "Response[T]":
+    def with_data(cls, data: T, message: str | None = None) -> "ApiResponse[T]":
         return cls(message=message or cls._OK_MESSAGE, data=data)
 
 
@@ -189,3 +164,51 @@ class ShortsVideoRequest(BaseModel):
     bgm_id: BGMTypeModel | None = None
     custom_bgm_url: str | None = None
     music_volume: float = 0.4
+
+
+class LoginRequest(BaseModel):
+    user_id: str
+    password: str
+
+
+class UserInfoResponse(BaseModel):
+    user_id: str
+    email: str
+    name: str
+
+
+class UserSignupRequest(BaseModel):
+    user_id: str
+    email: str
+    phone: str
+    name: str
+    password: str
+
+
+class EmailRequest(BaseModel):
+    email: str
+
+
+class EmailCodeVerifyRequest(BaseModel):
+    email: str
+    code: str
+
+
+class UUIDRequest(BaseModel):
+    email: str
+    uuid: str
+
+
+class PhoneRequest(BaseModel):
+    phone: str
+
+
+class PhoneCodeVerifyRequest(BaseModel):
+    phone: str
+    code: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+    uuid: str

@@ -20,6 +20,19 @@ services:
     networks:
       - zapcut-net
 
+  proxy:
+    image: serjs/go-socks5-proxy
+    container_name: zapcut-proxy
+    restart: unless-stopped
+    ports:
+      - "9111:1080"
+    environment:
+      - TZ=Asia/Seoul
+      - PROXY_USER=
+      - PROXY_PASSWORD=
+    networks:
+      - zapcut-net
+
   zapcut-api-blue:
     build:
       context: .
@@ -63,6 +76,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    networks:
+      - zapcut-net
+
+  redis:
+    image: redis:latest
+    container_name: zapcut-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    environment:
+      - TZ=Asia/Seoul
+    volumes:
+      - ./redis:/data
     networks:
       - zapcut-net
 

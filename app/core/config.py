@@ -25,12 +25,31 @@ class Settings(BaseSettings):
     openai_api_key: str
     google_ai_api_key: str
 
+    client_host: str = "http://localhost:3000" if os.getenv("ENV") != "production" else "https://zapcut.io"
+
     proxy: str
     unlock_proxy: str
     bright_data_api_key: str
 
     # database
     database_url: str
+
+    # JWT
+    secret_key: str
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
+    # email
+    brevo_key: str
+
+    # Aligo SMS
+    aligo_key: str
+
+    # Redis
+    redis_host: str = "localhost" if os.getenv("ENV") != "production" else "zapcut-redis"
+    redis_port: int = 6379
+    redis_password: str = ""
+    redis_db: int = 0
 
     class Config:
         env_file = str(ROOT_DIR / ".env")

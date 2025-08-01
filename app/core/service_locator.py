@@ -1,9 +1,10 @@
 from functools import lru_cache
 from app.services.openai_service import OpenAIService
 from app.services.google_ai_service import GoogleAIService
-from app.utils.text_processor import TextProcessor
-from app.utils.audio_processor import AudioProcessor
-from app.utils.video_processor import VideoProcessor
+from app.services.sms_service import SMSService
+from app.utils.video.text_processor import TextProcessor
+from app.utils.video.audio_processor import AudioProcessor
+from app.utils.video.video_processor import VideoProcessor
 from app.utils.io_processor import IOProcessor
 from dataclasses import dataclass
 
@@ -26,3 +27,8 @@ def get_openai_service() -> OpenAIService:
 @lru_cache()
 def get_google_ai_service() -> GoogleAIService:
     return GoogleAIService()
+
+
+@lru_cache()
+def get_sms_service() -> SMSService:
+    return SMSService()

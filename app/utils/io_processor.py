@@ -9,6 +9,9 @@ import requests
 from io import BytesIO
 from PIL import Image
 from app.utils.os_processor import get_temp_dir
+from app.core.config import get_settings
+
+settings = get_settings()
 
 
 class IOProcessor:
@@ -31,10 +34,6 @@ class IOProcessor:
                     content_length = response.headers.get("Content-Length")
                     expected_size = int(content_length) if content_length else None
 
-                    # print(f"다운로드 시작 - URL: {url}")
-                    # print(f"Content-Type: {content_type}")
-                    # print(f"Content-Length: {content_length}")
-
                     url_ext = url.split(".")[-1].split("?")[0].split("#")[0]
                     if len(url_ext) <= 5 and url_ext.isalnum():
                         file_extension = f".{url_ext}"
@@ -44,10 +43,8 @@ class IOProcessor:
                     temp_file_path = os.path.join(self.temp_dir, f"temp_file_{uuid.uuid4()}{file_extension}")
 
                     with open(temp_file_path, "wb") as f:
-                        downloaded_size = 0
                         async for chunk in response.content.iter_chunked(8192):
                             f.write(chunk)
-                            downloaded_size += len(chunk)
 
                     # 파일 무결성 검증
                     if not self._verify_file_integrity(temp_file_path, expected_size, content_type):
@@ -94,6 +91,7 @@ class IOProcessor:
                 file_data.seek(0)  # Reset file pointer to beginning
                 file_content = file_data.read()  # Read entire content into memory
                 file_data.close()  # Explicitly close the BytesIO object after reading
+
                 async with session.put(
                     upload_url, headers={"Content-Type": content_type}, data=file_content
                 ) as upload_response:

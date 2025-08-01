@@ -1,12 +1,12 @@
 from fastapi import APIRouter
 from app.utils.io_processor import IOProcessor
-from app.utils.audio_processor import AudioProcessor
+from app.utils.video.audio_processor import AudioProcessor
 from app.services.openai_service import OpenAIService
 from app.core.service_locator import get_openai_service
 from fastapi import Depends
-from app.core.dependencies import get_services, Services
+from app.core.dependencies import get_current_user, get_services, Services
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(get_current_user)])
 
 io_processor = IOProcessor()
 audio_processor = AudioProcessor()

@@ -1,12 +1,12 @@
-from fastapi import APIRouter, HTTPException
-from app.models.schemas import Response
-import httpx
-import uuid
+from fastapi import APIRouter, Depends
+from app.models.schemas import ApiResponse
+import aiohttp
 import io
 from app.exceptions.http_exceptions import ServerException
 from app.utils.io_processor import IOProcessor
+from app.core.dependencies import get_current_user
 
-router = APIRouter(prefix="/proxy")
+router = APIRouter(prefix="/proxy", dependencies=[Depends(get_current_user)])
 
 # S3 클라이언트 초기화 및 버킷 이름 관련 코드 제거
 # S3_BUCKET_NAME = "YOUR_S3_BUCKET_NAME"
@@ -17,9 +17,9 @@ io_processor = IOProcessor()
 @router.get("/image")
 async def get_image(image_url: str):
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(image_url, follow_redirects=True)
-            response.raise_for_status()  # HTTP 오류에 대한 예외 발생 (4xx 또는 5xx)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(image_url, allow_redirects=True) as response:
+                response.raise_for_status()  # HTTP 오류에 대한 예외 발생 (4xx 또는 5xx)
 
         # 파일 이름 및 확장자 결정 (io_processor의 로직을 따르도록 간소화)
         file_extension = image_url.split(".")[-1].split("?")[0].split("#")[0]
@@ -35,15 +35,14 @@ async def get_image(image_url: str):
             else:
                 file_extension = "jpg"  # 기본값
 
-        # S3에 이미지 업로드 (io_processor 사용)
-        image_data = io.BytesIO(response.content)
-        s3_url = await io_processor.upload_file_s3(file_data=image_data, ext=file_extension)
+                # S3에 이미지 업로드 (io_processor 사용)
+                content = await response.read()
+                image_data = io.BytesIO(content)
+                s3_url = await io_processor.upload_file_s3(file_data=image_data, ext=file_extension)
 
-        return Response.with_data(s3_url)
+                return ApiResponse.with_data(s3_url)
 
-    except httpx.RequestError as e:
-        raise ServerException(str(e))
-    except httpx.HTTPStatusError as e:
+    except aiohttp.ClientError as e:
         raise ServerException(str(e))
     except Exception as e:
         raise ServerException(str(e))

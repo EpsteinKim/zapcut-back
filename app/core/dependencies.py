@@ -1,18 +1,84 @@
-from fastapi import Depends
+from fastapi import Depends, Cookie, Header, Request
 from functools import lru_cache
 from app.services.google_ai_service import GoogleAIService
 from app.services.video_service import VideoService
 from app.services.crawling_service import CrawlingService
+from app.services.email_service import EmailService
+from app.services.sms_service import SMSService
+from app.utils import auth_helper
+from app.entity.user import User
+from sqlmodel import Session, select
+from app.core.database import engine
+from app.exceptions.http_exceptions import UnauthorizedException, UnprocessableEntityException
 import os
+from app.services.user_service import UserService
+import hashlib
+from typing import Optional
 
 
 class Services:
-    def __init__(self):
+    def __init__(self, session: Session):
         self.video = VideoService()
         self.google_ai = GoogleAIService()
         self.crawling = CrawlingService()
+        self.user = UserService()  # session 제거
+        self.email = EmailService()
+        self.sms = SMSService()
+        self._session = session  # session을 별도로 저장
+
+    @property
+    def session(self):
+        return self._session
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
 
 
 @lru_cache()
-def get_services() -> Services:
-    return Services()
+def get_services(session: Session = Depends(get_session)) -> Services:
+    return Services(session)
+
+
+async def get_current_user(
+    request: Request,
+    session: Session = Depends(get_session),
+    user_agent: str = Header(...),
+) -> User:
+    credentials_exception = UnauthorizedException("인증 정보를 확인할 수 없습니다.")
+
+    if not user_agent:
+        raise UnprocessableEntityException("비정상적인 요청입니다.")
+
+    device_id = hashlib.md5(user_agent.encode()).hexdigest()
+
+    # 쿠키에서 device_id에 해당하는 access_token 찾기
+    cookie_token_key = f"access_token_zcut_{device_id}"
+    access_token = request.cookies.get(cookie_token_key)
+
+    if not access_token:
+        raise credentials_exception
+
+    try:
+        payload = auth_helper.decode_token(access_token)
+        user_id: str = payload.get("sub")
+        token_device_id: str = payload.get("device_id")
+
+        if not user_id or token_device_id != device_id:
+            raise credentials_exception
+
+    except UnauthorizedException:
+        # auth_helper에서 발생한 구체적인 예외를 그대로 전파
+        raise
+    except Exception:
+        raise credentials_exception
+
+    user = session.exec(select(User).where(User.user_id == user_id)).first()
+    if user is None:
+        raise credentials_exception
+
+    if user.status == "LEAVE":
+        raise UnauthorizedException("탈퇴한 사용자입니다.")
+
+    return user

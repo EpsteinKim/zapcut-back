@@ -3,7 +3,6 @@ from moviepy.audio.fx.MultiplyVolume import MultiplyVolume
 from moviepy.audio.fx.AudioLoop import AudioLoop
 from moviepy.audio.AudioClip import CompositeAudioClip
 import os
-import aiohttp
 
 # import tempfile  # 제거
 import uuid

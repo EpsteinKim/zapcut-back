@@ -3,8 +3,8 @@ from io import BytesIO
 import json
 from openai import OpenAI
 from app.core.config import get_settings
-from app.exceptions.http_exceptions import UnprocessableEntityError
-from app.models.schemas import Response
+from app.exceptions.http_exceptions import UnprocessableEntityException
+from app.models.schemas import ApiResponse
 from app.utils.base64_decoder import decode_base64_data
 import requests
 import os
@@ -31,5 +31,3 @@ class OpenAIService:
                 file=audio_file,
                 response_format="verbose_json",
             )
-
-        print(transcription)

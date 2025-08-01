@@ -9,9 +9,9 @@ from moviepy import (
 from moviepy.video import fx as vfx
 from app.models.schemas import ShortsVideoRequest, BGMType, Scene
 from app.core.service_locator import get_google_ai_service
-from app.utils.video_processor import VideoProcessor
-from app.utils.audio_processor import AudioProcessor
-from app.utils.text_processor import TextProcessor
+from app.utils.video.video_processor import VideoProcessor
+from app.utils.video.audio_processor import AudioProcessor
+from app.utils.video.text_processor import TextProcessor
 from app.utils.io_processor import IOProcessor
 from app.exceptions.http_exceptions import ServerException
 from io import BytesIO
