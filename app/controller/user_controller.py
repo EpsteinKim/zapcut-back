@@ -158,3 +158,12 @@ async def reset_password(request: Request, ApiRequest: ResetPasswordRequest, ser
     service.user.reset_user_password(service.session, ApiRequest)
 
     return ApiResponse.ok(message="비밀번호 재설정이 성공적으로 완료되었습니다.")
+
+
+@router.delete
+async def leave_user(
+    current_user: User = Depends(get_current_user),
+    service: Services = Depends(get_services),
+):
+    service.user.leave_user(service.session, current_user.user_id)
+    return ApiResponse.ok("탈퇴 처리가 성공적으로 완료되었습니다.")

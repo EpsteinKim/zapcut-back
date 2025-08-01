@@ -22,7 +22,8 @@ async def exception_handler(request: Request, exc: Exception):
                 error_messages.append(f"{field}: {msg}")
             else:
                 error_messages.append(msg)
-        message = "입력 데이터가 올바르지 않습니다: " + ", ".join(error_messages)
+        message = "입력 데이터가 올바르지 않습니다"
+        data = error_messages
 
     elif isinstance(exc, BaseHTTPException):
         status_code = exc.status_code

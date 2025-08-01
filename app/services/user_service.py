@@ -72,6 +72,22 @@ class UserService:
             session.rollback()
             raise ServerException("비밀번호 재설정 중 오류가 발생했습니다.", data=str(e))
 
+    def leave_user(self, session: Session, user_id: str):
+        user = session.exec(select(User).where(User.user_id == user_id)).first()
+        if not user:
+            raise NotFoundException("해당 사용자를 찾을 수 없습니다.")
+
+        if user.status == "LEAVE":
+            raise ConflictException("이미 탈퇴한 사용자입니다.")
+
+        try:
+            user.status = "LEAVE"
+            redis_helper.jwt.delete_all_refresh_tokens(user_id)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise ServerException("탈퇴 처리 중 오류가 발생했습니다.", data=str(e))
+
     def check_email_exist(self, session: Session, email: str) -> bool:
         existing_email = session.exec(select(User).where(User.email == email)).first()
         return existing_email is not None

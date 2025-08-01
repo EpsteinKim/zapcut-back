@@ -61,3 +61,6 @@ htmlcov/
 .tox/
 coverage.xml
 *.cover 
+
+#local redis
+redis/dump.rdb
