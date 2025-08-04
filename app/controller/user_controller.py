@@ -138,14 +138,14 @@ def signup(
 @router.post("/find/id")
 async def find_user_id_by_email(
     request: Request,
-    ApiRequest: EmailRequest,
+    api_request: EmailRequest,
     service: Services = Depends(get_services),
 ):
     # IP별 rate limiting 적용 (초당 1회 제한)
     check_rate_limit(request, max_requests=1, window_seconds=1, prefix="find_user_id")
 
     # 이메일로 사용자 찾기
-    user = service.user.find_user_by_email(service.session, ApiRequest.email)
+    user = service.user.find_user_by_email(service.session, api_request.email)
 
     if not user:
         raise NotFoundException("해당 이메일로 등록된 사용자를 찾을 수 없습니다.")
@@ -154,8 +154,8 @@ async def find_user_id_by_email(
 
 
 @router.post("/reset-password")
-async def reset_password(request: Request, ApiRequest: ResetPasswordRequest, service: Services = Depends(get_services)):
-    service.user.reset_user_password(service.session, ApiRequest)
+async def reset_password(api_request: ResetPasswordRequest, service: Services = Depends(get_services)):
+    service.user.reset_user_password(service.session, api_request)
 
     return ApiResponse.ok(message="비밀번호 재설정이 성공적으로 완료되었습니다.")
 

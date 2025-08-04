@@ -105,11 +105,9 @@ EOF
         mkdir -p nginx-logs
 
         # Redis 권한 설정
-        if [ -f ./redis/dump.rdb ]; then
-            echo "🔧 Redis 권한 설정 중..."
-            chmod 666 ./redis/dump.rdb
-            chown 999:999 ./redis/dump.rdb 2>/dev/null || true
-        fi
+        echo "🔧 Redis 권한 설정 중..."
+        chmod -R 777 ./redis/
+        chown -R 999:999 ./redis/ 2>/dev/null || true
 
         docker-compose down
         docker-compose up -d --build
@@ -174,11 +172,9 @@ REMOTE_EOF
         echo "✅ 현재 환경: $PRODUCTION_ENV"
         
         # Redis 권한 설정
-        if [ -f ./redis/dump.rdb ]; then
-            echo "🔧 Redis 권한 설정 중..."
-            chmod 666 ./redis/dump.rdb
-            chown 999:999 ./redis/dump.rdb 2>/dev/null || true
-        fi
+        echo "🔧 Redis 권한 설정 중..."
+        chmod -R 777 ./redis/
+        chown -R 999:999 ./redis/ 2>/dev/null || true
         
         # 반대 환경으로 배포
         if [ "$PRODUCTION_ENV" = "blue" ]; then
@@ -539,7 +535,7 @@ case $1 in
         fi
         ;;
     redis)
-        docker exec -it zapcut-redis redis-cli
+        ssh -q root@zapcut "cd ~/zapcut-back && docker exec -it zapcut-redis redis-cli"
         ;;
     *)
         echo "Usage: $0 {api|init|check|switch|stop|start|logs}"

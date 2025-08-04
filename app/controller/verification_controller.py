@@ -86,16 +86,16 @@ async def verify_phone_code(
 
 @router.post("/reset-password/send-uuid")
 async def send_reset_password_uuid(
-    request: Request, ApiRequest: EmailRequest, service: Services = Depends(get_services)
+    request: Request, api_request: EmailRequest, service: Services = Depends(get_services)
 ):
     # IP별 rate limiting 적용 (초당 1회 제한)
     check_rate_limit(request, max_requests=1, window_seconds=1, prefix="find_user_password")
 
     # 이메일로 사용자 찾기
-    user = service.user.find_user_by_email(service.session, ApiRequest.email)
+    user = service.user.find_user_by_email(service.session, api_request.email)
     if not user:
         raise NotFoundException("해당 이메일로 등록된 사용자를 찾을 수 없습니다.")
-    await service.email.send_find_account_uuid(ApiRequest.email, user.user_id)
+    await service.email.send_find_account_uuid(api_request.email, user.user_id)
 
     return ApiResponse.ok("이메일 인증 메일이 전송되었습니다.")
 
