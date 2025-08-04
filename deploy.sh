@@ -104,6 +104,12 @@ EOF
         mkdir -p temp_green
         mkdir -p nginx-logs
 
+        # Redis 권한 설정
+        if [ -f ./redis/dump.rdb ]; then
+            echo "🔧 Redis 권한 설정 중..."
+            chmod 666 ./redis/dump.rdb
+            chown 999:999 ./redis/dump.rdb 2>/dev/null || true
+        fi
 
         docker-compose down
         docker-compose up -d --build
@@ -166,6 +172,13 @@ REMOTE_EOF
         fi
         
         echo "✅ 현재 환경: $PRODUCTION_ENV"
+        
+        # Redis 권한 설정
+        if [ -f ./redis/dump.rdb ]; then
+            echo "🔧 Redis 권한 설정 중..."
+            chmod 666 ./redis/dump.rdb
+            chown 999:999 ./redis/dump.rdb 2>/dev/null || true
+        fi
         
         # 반대 환경으로 배포
         if [ "$PRODUCTION_ENV" = "blue" ]; then
