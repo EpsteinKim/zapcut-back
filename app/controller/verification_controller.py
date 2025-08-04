@@ -35,7 +35,7 @@ async def verify_email_code(
     if is_verified:
         # 인증 완료 시 Redis에 정보 저장
         device_id = get_device_id(user_agent)
-        redis_helper.email_verify.set_verification_complete(email_verify_request.email, device_id, user_agent)
+        redis_helper.email_verify.set_verification_complete(email_verify_request.email, device_id)
         return ApiResponse.ok("인증이 완료되었습니다.")
     else:
         raise ServerException("인증코드가 일치하지 않습니다.")
@@ -78,7 +78,7 @@ async def verify_phone_code(
     if is_verified:
         # 인증 완료 시 Redis에 정보 저장
         device_id = get_device_id(user_agent)
-        redis_helper.phone_verify.set_verification_complete(request.phone, device_id, user_agent)
+        redis_helper.phone_verify.set_verification_complete(request.phone, device_id)
         return ApiResponse.ok("인증이 완료되었습니다.")
     else:
         raise ServerException("인증코드가 일치하지 않습니다.")
