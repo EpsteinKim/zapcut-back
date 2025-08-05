@@ -159,7 +159,6 @@ class GoogleAIService:
         text: str,
         voice_model: TTSVoiceModel,
         voice_temperature: float,
-        speed_multiplier: float,
         duration: float | None = None,
     ):
         prompt = f"""
@@ -167,10 +166,15 @@ class GoogleAIService:
         - Speak at a fast and energetic pace suitable for YouTube Shorts (about 1.3x ~ 1.5x normal speed)
         - Keep the tone engaging and dynamic
         - Maintain clear pronunciation even at faster speed
-        
+        - Do not repeat any sentence or content more than once. If there is any duplicate, say it only once.
         """
         if duration:
-            prompt += f"Read the text within the specified duration of {duration} seconds, even if it means speaking faster than normal. The timing is crucial - do not exceed the duration under any circumstances. Adjust your speaking pace to ensure the entire text is delivered within the time limit."
+            prompt += f"""
+            Read the text within the specified duration of {duration} seconds, 
+            even if it means speaking faster than normal. 
+            The timing is crucial - do not exceed the duration under any circumstances.
+            Adjust your speaking pace to ensure the entire text is delivered within the time limit.
+            """
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -180,7 +184,7 @@ class GoogleAIService:
                     contents=prompt,
                     config=genai.types.GenerateContentConfig(
                         response_modalities=["AUDIO"],
-                        temperature=0,
+                        temperature=voice_temperature,
                         speech_config=genai.types.SpeechConfig(
                             voice_config=genai.types.VoiceConfig(
                                 prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
@@ -194,10 +198,8 @@ class GoogleAIService:
                 audio_data = decode_base64_data(data)
                 temp_wav_path = os.path.join(self.temp_dir, f"tts_audio_{uuid.uuid4()}.mp3")
                 audio = AudioSegment(audio_data, sample_width=2, frame_rate=24000, channels=1)
-                if speed_multiplier != 1.0:
-                    audio = audio.speedup(playback_speed=speed_multiplier)
                 try:
-                    audio.export(temp_wav_path, format="mp3")
+                    audio.export(temp_wav_path, format="mp3", parameters=["-q:a", "0"])
                 except Exception as export_error:
                     logging.error(f"audio.export 실패: {str(export_error)}")
                     raise ServerException(f"오디오 export 실패: {str(export_error)}")
@@ -214,29 +216,14 @@ class GoogleAIService:
                     raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
                 await asyncio.sleep(1)
 
-    async def make_synced_scene(self, request: ShortsTranscriptionRequest):
-        subclips_data = await self.audio_processor.get_audio_subclip(request.audio_url, request.text_scenes)
-
-        adjusted_scenes = []
-        for i, subclip_data in enumerate(subclips_data):
-            adjusted_scenes.append(
-                Scene(
-                    text=request.text_scenes[i],
-                    duration=subclip_data["duration"],
-                    voice_url=subclip_data["voice_url"],
-                )
-            )
-
-        # sync_scene_voice 함수를 사용하여 캡션 동기화
-        synced_scenes = await self.sync_scene_voice(adjusted_scenes)
-
-        return synced_scenes
-
     async def sync_scene_voice(self, text: str, duration: float, voice_url: str) -> str:
+        class SimpleCaptionInfo(BaseModel):
+            text: str
+            start_time: float
+            end_time: float
+
         class SimpleScene(BaseModel):
-            duration: float
-            captions: list[CaptionInfo]
-            voice_url: str
+            captions: list[SimpleCaptionInfo]
 
         system_prompt = f"""
             You are a professional YouTube Shorts caption generator. Create precise captions that sync with the provided voice audio.
@@ -247,16 +234,12 @@ class GoogleAIService:
             3. If a caption would be too short (less than 4 non-space characters), combine it intelligently with adjacent text
             4. The total duration of all captions MUST exactly match the provided duration - this is non-negotiable
             5. ALL text from the user's input must be included across the captions - no text should be omitted
-            6. Captions should feel natural and readable for YouTube Shorts viewers
-            7. Break text at natural speech pauses and word boundaries when possible
-            8. Timing should feel natural - don't rush or drag captions unnaturally
-            9. REMOVE all commas(,), periods(.), and emojis from the captions, EXCEPT when they are part of a number (e.g., decimal points like 3.14 or thousand separators like 1,000 must be preserved).
-            10. There must be at least a 0.02 second gap between the end of one caption and the start of the next caption. No captions should overlap in time.
+            6. REMOVE all commas(,), periods(.), and emojis from the captions, EXCEPT when they are part of a number (e.g., decimal points like 3.14 or thousand separators like 1,000 must be preserved).
+            7. There must be at least a 0.02 second gap between the end of one caption and the start of the next caption. No captions should overlap in time.
             
             YOUTUBE SHORTS OPTIMIZATION:
             - Prioritize readability on mobile screens
             - Use natural Korean speech rhythm for timing
-            - Ensure smooth visual flow between captions
             - Consider viewer attention span and reading speed
         """
 

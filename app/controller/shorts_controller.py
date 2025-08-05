@@ -67,7 +67,6 @@ async def get_shorts_voice(request: ShortsVoiceRequest, services: Services = Dep
         voice_model=request.voice_model,
         voice_temperature=request.voice_temperature,
         duration=request.duration,
-        speed_multiplier=1.0,
     )
     download_url = await io_processor.upload_file_s3(file_path=output_path, ext="mp3")
     return ApiResponse.with_data(download_url)

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import List, TypeVar, Generic, ClassVar, Literal
 from fastapi import Query
 
-from app.core.config import BGM_PATH
+from app.core.config import BGM_PATH, FONT_PATH
 
 T = TypeVar("T")
 
@@ -35,6 +35,23 @@ class AnimationEffect(BaseModel):
     SEQUENTIAL: ClassVar[str] = "SEQUENTIAL"
     LARGE_TEXT: ClassVar[str] = "LARGE_TEXT"
     SMOOTH_POP: ClassVar[str] = "SMOOTH_POP"
+
+
+class FontFamily(BaseModel):
+    JUA: ClassVar[str] = "JUA"
+    MARU_BURI: ClassVar[str] = "MARU_BURI"
+    PAPERLOGY: ClassVar[str] = "PAPERLOGY"
+
+    _FONT_PATHS: ClassVar[dict[str, str]] = {
+        "JUA": FONT_PATH + "/Jua-Regular.ttf",
+        "MARU_BURI": FONT_PATH + "/MaruBuri-Regular.otf",
+        "PAPERLOGY": FONT_PATH + "/Paperlogy-4Regular.ttf",
+    }
+
+    @classmethod
+    def get_file_path(cls, font_type: str) -> str | None:
+        """폰트 타입에 해당하는 파일 이름을 반환합니다."""
+        return cls._FONT_PATHS.get(font_type)
 
 
 class SoundEffect(BaseModel):
@@ -114,6 +131,8 @@ class CaptionInfo(BaseModel):
     text: str
     start_time: float
     end_time: float
+    position: Literal["TOP", "BOTTOM", "CENTER"] = "CENTER"
+    font_family: Literal["JUA", "MARU_BURI", "PAPERLOGY"] = "JUA"
     sound_effect: str | None = None  # SoundEffect의 값들 중 하나
     animation_effect: str | None = None  # AnimationEffect의 값들 중 하나
     color: str | None = None

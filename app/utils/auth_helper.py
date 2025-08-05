@@ -22,56 +22,30 @@ def verify_password(client_hash_password: str, server_hash_password: str, timest
     return client_hash_password == hash_password
 
 
-def get_password_hash(password: str) -> str:
-    """비밀번호를 해싱합니다. (DB 저장용)"""
-    return hashlib.sha256(f"{password}{SECRET_KEY}".encode()).hexdigest()
-
-
-def create_token(data: dict, expires_delta: timedelta) -> str:
+def create_access_token(data: dict) -> str:
     """토큰을 생성합니다."""
     to_encode = data.copy()
-    expire = datetime.utcnow() + expires_delta
+    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
     return encoded_jwt
 
 
-def create_access_token(data: dict) -> str:
-    """액세스 토큰을 생성합니다."""
-    return create_token(data=data, expires_delta=timedelta(minutes=settings.access_token_expire_minutes))
-
-
+# {sub: user_id, device_id: device_id}
 def create_refresh_token(data: dict) -> str:
-    refresh_token = create_token(data=data, expires_delta=timedelta(days=settings.refresh_token_expire_days))
-    device_id = data.get("device_id")
-    redis_helper.jwt.store_refresh_token(data["sub"], refresh_token, device_id)
-    return refresh_token
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    redis_helper.jwt.store_refresh_token(data["sub"], encoded_jwt, data["device_id"])
+    return encoded_jwt
 
 
-def decode_unsafe_token(token: str) -> dict | None:
-    try:
-        return jwt.decode(token, settings.secret_key, algorithms=["HS256"], options={"verify_exp": False})
-    except:
-        return None
-
-
-def decode_token(token: str) -> dict:
+def decode_refresh_token(token: str) -> dict:
     try:
         if redis_helper.jwt.is_blacklisted(token):
             raise UnauthorizedException("무효화된 토큰입니다.")
-
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        return payload
-    except JWTError:
-        raise UnauthorizedException("유효하지 않은 인증 토큰입니다.")
-
-
-def decode_refresh_token(token: str, user_id: str, device_id: str) -> dict:
-    try:
-        payload = decode_token(token)
-        if payload["sub"] != user_id or payload["device_id"] != device_id:
-            raise UnauthorizedException("유효하지 않은 리프레시 토큰입니다.")
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
     except UnauthorizedException as e:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"], options={"verify_exp": False})

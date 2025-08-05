@@ -4,11 +4,6 @@ from app.entity.user import User, UserCreate, UserResponse
 from app.models.schemas import ResetPasswordRequest
 from app.utils.auth_helper import (
     verify_password,
-    decode_refresh_token,
-    decode_token,
-    get_password_hash,
-    create_access_token,
-    create_refresh_token,
 )
 from app.exceptions.http_exceptions import (
     ConflictException,
@@ -110,63 +105,6 @@ class UserService:
 
         # 멀티 디바이스 지원으로 기존 세션 무효화 제거
         return user
-
-    def set_access_token_cookie(self, response: Response, access_token: str, device_id: str):
-        is_production = settings.env == "production"
-        response.set_cookie(
-            key=f"access_token_zcut_{device_id}",
-            value=access_token,
-            httponly=True,  # JavaScript에서 접근 가능
-            secure=is_production,
-            max_age=settings.access_token_expire_minutes * 60,  # 30분
-            samesite="none" if is_production else "lax",
-            path="/",
-        )
-
-    def set_refresh_token_cookie(self, response: Response, refresh_token: str, device_id: str):
-        is_production = settings.env == "production"
-        response.set_cookie(
-            key=f"refresh_token_zcut_{device_id}",
-            value=refresh_token,
-            httponly=True,  # 보안을 위해 httponly 유지
-            secure=is_production,
-            max_age=settings.refresh_token_expire_days * 24 * 60 * 60,  # 7일
-            samesite="none" if is_production else "lax",
-            path="/",
-        )
-
-    def refresh_user_token(self, refresh_token: str, device_id: str) -> str:
-        if not refresh_token:
-            raise UnauthorizedException("리프레시 토큰이 없습니다.")
-
-        decoded = decode_token(refresh_token)
-        user_id = decoded["sub"]
-
-        # device_id도 함께 검증
-        decode_refresh_token(refresh_token, user_id, device_id)
-
-        stored_token = redis_helper.jwt.get_refresh_token(user_id, device_id)
-        if not stored_token or stored_token != refresh_token:
-            raise UnauthorizedException("유효하지 않은 리프레시 토큰입니다.")
-
-        try:
-            payload = jwt.decode(
-                refresh_token, settings.secret_key, algorithms=["HS256"], options={"verify_exp": False}
-            )
-            exp_timestamp = payload.get("exp", 0)
-            current_timestamp = datetime.utcnow().timestamp()
-
-            if exp_timestamp > current_timestamp:
-                remaining_seconds = int(exp_timestamp - current_timestamp)
-                redis_helper.jwt.blacklist(refresh_token, remaining_seconds)
-        except:
-            redis_helper.jwt.blacklist(refresh_token, 3600)
-
-        token_data = {"sub": user_id, "device_id": device_id}
-        new_access_token = create_access_token(token_data)
-        new_refresh_token = create_refresh_token(token_data)
-
-        return new_access_token, new_refresh_token
 
     def get_device_id(self, user_agent: str) -> str:
         if not user_agent:

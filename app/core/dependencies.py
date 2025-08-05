@@ -1,4 +1,4 @@
-from fastapi import Depends, Cookie, Header, Request
+from fastapi import Depends, Cookie, Header, Request, Response
 from functools import lru_cache
 from app.services.google_ai_service import GoogleAIService
 from app.services.video_service import VideoService
@@ -6,6 +6,7 @@ from app.services.crawling_service import CrawlingService
 from app.services.email_service import EmailService
 from app.services.sms_service import SMSService
 from app.utils import auth_helper
+from app.utils import redis_helper
 from app.entity.user import User
 from sqlmodel import Session, select
 from app.core.database import engine
@@ -14,6 +15,12 @@ import os
 from app.services.user_service import UserService
 import hashlib
 from typing import Optional
+from app.core.config import get_settings
+from app.utils import cookie_helper
+from app.utils.common_util import get_device_id
+from datetime import timedelta
+
+settings = get_settings()
 
 
 class Services:
@@ -43,6 +50,7 @@ def get_services(session: Session = Depends(get_session)) -> Services:
 
 async def get_current_user(
     request: Request,
+    response: Response,
     session: Session = Depends(get_session),
     user_agent: str = Header(...),
 ) -> User:
@@ -51,17 +59,44 @@ async def get_current_user(
     if not user_agent:
         raise UnprocessableEntityException("비정상적인 요청입니다.")
 
-    device_id = hashlib.md5(user_agent.encode()).hexdigest()
+    device_id = get_device_id(user_agent)
 
-    # 쿠키에서 device_id에 해당하는 access_token 찾기
-    cookie_token_key = f"access_token_zcut_{device_id}"
-    access_token = request.cookies.get(cookie_token_key)
+    access_token = request.cookies.get(f"access_token_zcut_{device_id}")
 
     if not access_token:
-        raise credentials_exception
+        # refresh_token이 존재하는 경우 확인하고 새로운 access_token 발급
+        refresh_token = request.cookies.get(f"refresh_token_zcut_{device_id}")
+
+        if not refresh_token:
+            raise credentials_exception
+
+        try:
+            refresh_payload = auth_helper.decode_refresh_token(refresh_token)
+            user_id = refresh_payload.get("sub")
+            token_device_id = refresh_payload.get("device_id")
+
+            # 비정상적인 접근
+            if not user_id or token_device_id != device_id:
+                raise UnauthorizedException(
+                    "누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요?"
+                )
+
+            user = session.exec(select(User).where(User.user_id == user_id)).first()
+            if user is None:
+                raise credentials_exception
+
+            new_access_token = auth_helper.create_access_token(data={"sub": user.user_id, "device_id": device_id})
+            cookie_helper.set_access_token_cookie(response, new_access_token, device_id)
+            access_token = new_access_token
+        except UnauthorizedException:
+            if refresh_token:
+                redis_helper.jwt.blacklist(refresh_token, timedelta(days=settings.refresh_token_expire_days))
+            raise
+        except Exception:
+            raise credentials_exception
 
     try:
-        payload = auth_helper.decode_token(access_token)
+        payload = auth_helper.decode_refresh_token(access_token)
         user_id: str = payload.get("sub")
         token_device_id: str = payload.get("device_id")
 
@@ -69,7 +104,6 @@ async def get_current_user(
             raise credentials_exception
 
     except UnauthorizedException:
-        # auth_helper에서 발생한 구체적인 예외를 그대로 전파
         raise
     except Exception:
         raise credentials_exception

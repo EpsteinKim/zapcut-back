@@ -5,11 +5,11 @@ from app.core.dependencies import get_current_user, get_services, Services
 from app.utils.auth_helper import create_access_token, create_refresh_token
 from app.exceptions.http_exceptions import UnauthorizedException, BadRequestException, NotFoundException
 from app.core.config import get_settings
-from app.utils import redis_helper
-from app.utils import auth_helper
+from app.utils import redis_helper, cookie_helper
 from app.models.schemas import ResetPasswordRequest, UserSignupRequest
 from app.utils.common_util import get_device_id
 from app.utils.rate_limit_util import check_rate_limit
+import jwt
 
 router = APIRouter(
     prefix="/user",
@@ -37,39 +37,10 @@ async def login_for_access_token(
 
     access_token = create_access_token(data={"sub": user.user_id, "device_id": device_id})
     refresh_token = create_refresh_token(data={"sub": user.user_id, "device_id": device_id})
-    service.user.set_access_token_cookie(response, access_token, device_id)
-    service.user.set_refresh_token_cookie(response, refresh_token, device_id)
+    cookie_helper.set_access_token_cookie(response, access_token, device_id)
+    cookie_helper.set_refresh_token_cookie(response, refresh_token, device_id)
 
     return ApiResponse.ok()
-
-
-@router.get("/token/refresh")
-async def refresh_token(
-    request: Request,
-    response: Response,
-    user_agent: str = Header(...),
-    service: Services = Depends(get_services),
-):
-    try:
-        device_id = service.user.get_device_id(user_agent)
-        refresh_token = request.cookies.get(f"refresh_token_zcut_{device_id}")
-
-        if not refresh_token:
-            raise UnauthorizedException("리프레시 토큰이 없습니다.")
-
-        # 새로운 토큰들 받기 (토큰 회전)
-        new_access_token, new_refresh_token = service.user.refresh_user_token(refresh_token, device_id)
-
-        # 새 토큰들을 쿠키에 설정
-        service.user.set_access_token_cookie(response, new_access_token, device_id)
-        service.user.set_refresh_token_cookie(response, new_refresh_token, device_id)
-
-        return ApiResponse.ok()
-    except Exception as e:
-        if user_agent:
-            device_id = service.user.get_device_id(user_agent)
-
-        raise UnauthorizedException("리프레시 토큰이 유효하지 않습니다.")
 
 
 @router.delete("/logout")
@@ -89,7 +60,7 @@ async def logout(
         service.user.blacklist_token(access_token, 60 * 30)  # 30분간 블랙리스트
     if refresh_token:
         service.user.blacklist_token(refresh_token, 60 * 60 * 24 * 7)  # 7일간 블랙리스트
-        decoded = auth_helper.decode_unsafe_token(refresh_token)
+        decoded = jwt.decode(refresh_token, settings.secret_key, algorithms=["HS256"], options={"verify_exp": False})
         if decoded:
             user_id = decoded.get("sub")
             redis_helper.jwt.delete_refresh_token(user_id, device_id)
