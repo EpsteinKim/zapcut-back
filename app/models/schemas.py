@@ -37,6 +37,22 @@ class AnimationEffect(BaseModel):
     SMOOTH_POP: ClassVar[str] = "SMOOTH_POP"
 
 
+TransitionTypeModel = Literal[
+    "ROTATE", "BLACK_WHITE", "SCALE", "BLUR", "SLIDE_DOWN", "SLIDE_UP", "SLIDE_LEFT", "SLIDE_RIGHT"
+]
+
+
+class TransitionType:
+    ROTATE: ClassVar[str] = "ROTATE"
+    BLACK_WHITE: ClassVar[str] = "BLACK_WHITE"
+    SCALE: ClassVar[str] = "SCALE"
+    BLUR: ClassVar[str] = "BLUR"
+    SLIDE_DOWN: ClassVar[str] = "SLIDE_DOWN"
+    SLIDE_UP: ClassVar[str] = "SLIDE_UP"
+    SLIDE_LEFT: ClassVar[str] = "SLIDE_LEFT"
+    SLIDE_RIGHT: ClassVar[str] = "SLIDE_RIGHT"
+
+
 class FontFamily(BaseModel):
     JUA: ClassVar[str] = "JUA"
     MARU_BURI: ClassVar[str] = "MARU_BURI"
@@ -63,18 +79,6 @@ TTSVoiceModel = Literal[
     "Achernar", "Callirrhoe", "Enceladus", "Fenrir", "Kore", "Lapetus", "Leda", "Sadaltager", "Zephyr"
 ]
 
-# BGM 타입 정의
-BGMTypeModel = Literal[
-    "SUNGLASS_MAN",
-    "CHEERING_APPLAUSE",
-    "STRANGE_CURIOSITY",
-    "RABBIT",
-    "YOU_FIRST_DO",
-    "SURFING_DANCE",
-    "CUSTOM",
-    "NONE",
-]
-
 
 # 상수 접근을 위한 클래스 (옵션)
 class VoiceModelConstants:
@@ -87,6 +91,19 @@ class VoiceModelConstants:
     Leda: ClassVar[str] = "Leda"
     Sadaltager: ClassVar[str] = "Sadaltager"
     Zephyr: ClassVar[str] = "Zephyr"
+
+
+# BGM 타입 정의
+BGMTypeModel = Literal[
+    "SUNGLASS_MAN",
+    "CHEERING_APPLAUSE",
+    "STRANGE_CURIOSITY",
+    "RABBIT",
+    "YOU_FIRST_DO",
+    "SURFING_DANCE",
+    "CUSTOM",
+    "NONE",
+]
 
 
 class BGMType:

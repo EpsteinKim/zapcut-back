@@ -71,21 +71,20 @@ async def get_current_user(
             raise credentials_exception
 
         try:
-            refresh_payload = auth_helper.decode_refresh_token(refresh_token)
+            refresh_payload = auth_helper.decode_token(refresh_token, token_type="refresh_token")
             user_id = refresh_payload.get("sub")
             token_device_id = refresh_payload.get("device_id")
 
-            # 비정상적인 접근
             if not user_id or token_device_id != device_id:
-                raise UnauthorizedException(
-                    "누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요? 누구세요?"
-                )
+                raise credentials_exception
 
             user = session.exec(select(User).where(User.user_id == user_id)).first()
             if user is None:
                 raise credentials_exception
 
-            new_access_token = auth_helper.create_access_token(data={"sub": user.user_id, "device_id": device_id})
+            new_access_token = auth_helper.create_token(
+                data={"sub": user.user_id, "device_id": device_id}, token_type="access_token"
+            )
             cookie_helper.set_access_token_cookie(response, new_access_token, device_id)
             access_token = new_access_token
         except UnauthorizedException:
@@ -96,7 +95,7 @@ async def get_current_user(
             raise credentials_exception
 
     try:
-        payload = auth_helper.decode_refresh_token(access_token)
+        payload = auth_helper.decode_token(access_token, token_type="access_token")
         user_id: str = payload.get("sub")
         token_device_id: str = payload.get("device_id")
 

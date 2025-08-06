@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 import hashlib
 
 from jose import jwt, JWTError
@@ -22,30 +22,35 @@ def verify_password(client_hash_password: str, server_hash_password: str, timest
     return client_hash_password == hash_password
 
 
-def create_access_token(data: dict) -> str:
-    """토큰을 생성합니다."""
+# {sub: user_id, device_id: device_id}, token_type: "access_token" or "refresh_token"
+# 토큰 생성 후 redis에 저장
+def create_token(data: dict, token_type: Literal["access_token", "refresh_token"]) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    if token_type == "access_token":
+        expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
+    else:
+        expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
+    redis_helper.jwt.store_token(
+        user_id=data["sub"], token=encoded_jwt, device_id=data["device_id"], token_type=token_type
+    )
     return encoded_jwt
 
 
-# {sub: user_id, device_id: device_id}
-def create_refresh_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
-    redis_helper.jwt.store_refresh_token(data["sub"], encoded_jwt, data["device_id"])
-    return encoded_jwt
-
-
-def decode_refresh_token(token: str) -> dict:
+def decode_token(token: str, token_type: Literal["access_token", "refresh_token"]) -> dict:
     try:
         if redis_helper.jwt.is_blacklisted(token):
             raise UnauthorizedException("무효화된 토큰입니다.")
-        return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        redis_stored_token = redis_helper.jwt.get_token(
+            user_id=payload["sub"], device_id=payload["device_id"], token_type=token_type
+        )
+        if redis_stored_token == token:
+            return payload
+        else:
+            raise UnauthorizedException("무효화된 토큰입니다.")
     except UnauthorizedException as e:
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"], options={"verify_exp": False})

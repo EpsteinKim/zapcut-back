@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Form, Header, Response, Cookie, Request
 from app.entity.user import User, UserResponse
 from app.models.schemas import ApiResponse, EmailRequest
 from app.core.dependencies import get_current_user, get_services, Services
-from app.utils.auth_helper import create_access_token, create_refresh_token
+from app.utils.auth_helper import create_token
 from app.exceptions.http_exceptions import UnauthorizedException, BadRequestException, NotFoundException
 from app.core.config import get_settings
 from app.utils import redis_helper, cookie_helper
@@ -35,8 +35,8 @@ async def login_for_access_token(
     user = service.user.authenticate_user(service.session, user_id, password, ts)
     device_id = service.user.get_device_id(user_agent)
 
-    access_token = create_access_token(data={"sub": user.user_id, "device_id": device_id})
-    refresh_token = create_refresh_token(data={"sub": user.user_id, "device_id": device_id})
+    access_token = create_token(data={"sub": user.user_id, "device_id": device_id}, token_type="access_token")
+    refresh_token = create_token(data={"sub": user.user_id, "device_id": device_id}, token_type="refresh_token")
     cookie_helper.set_access_token_cookie(response, access_token, device_id)
     cookie_helper.set_refresh_token_cookie(response, refresh_token, device_id)
 
@@ -63,7 +63,7 @@ async def logout(
         decoded = jwt.decode(refresh_token, settings.secret_key, algorithms=["HS256"], options={"verify_exp": False})
         if decoded:
             user_id = decoded.get("sub")
-            redis_helper.jwt.delete_refresh_token(user_id, device_id)
+            redis_helper.jwt.delete_token(user_id, device_id, "refresh_token")
 
     service.user.clear_auth_cookies(response, device_id)
     return ApiResponse.ok()

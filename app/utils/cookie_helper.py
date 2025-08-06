@@ -28,3 +28,11 @@ def set_refresh_token_cookie(response: Response, refresh_token: str, device_id: 
         samesite="none" if is_production else "lax",
         path="/",
     )
+
+
+def delete_access_token_cookie(response: Response, device_id: str):
+    response.delete_cookie(key=f"access_token_zcut_{device_id}", path="/")
+
+
+def delete_refresh_token_cookie(response: Response, device_id: str):
+    response.delete_cookie(key=f"refresh_token_zcut_{device_id}", path="/")

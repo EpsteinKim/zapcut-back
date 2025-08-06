@@ -4,7 +4,7 @@ from datetime import timedelta
 import json
 import random
 import string
-from typing import Optional
+from typing import Literal, Optional
 import time
 
 settings = get_settings()
@@ -20,21 +20,29 @@ redis_client = Redis(
 
 class TokenHelper:
     @staticmethod
-    def store_refresh_token(user_id: str, refresh_token: str, device_id: str) -> None:
-        expiry = timedelta(days=settings.refresh_token_expire_days)
-        redis_client.setex(f"refresh_token:{user_id}:{device_id}", int(expiry.total_seconds()), refresh_token)
+    def store_token(
+        user_id: str, token: str, device_id: str, token_type: Literal["access_token", "refresh_token"]
+    ) -> None:
+        if token_type == "access_token":
+            expiry = timedelta(minutes=settings.access_token_expire_minutes)
+        else:
+            expiry = timedelta(days=settings.refresh_token_expire_days)
+        redis_client.setex(f"{token_type}:{user_id}:{device_id}", int(expiry.total_seconds()), token)
+
+    def exists_token(user_id: str, device_id: str, token_type: Literal["access_token", "refresh_token"]) -> bool:
+        return redis_client.exists(f"{token_type}:{user_id}:{device_id}")
 
     @staticmethod
-    def get_refresh_token(user_id: str, device_id: str) -> str | None:
-        return redis_client.get(f"refresh_token:{user_id}:{device_id}")
+    def get_token(user_id: str, device_id: str, token_type: Literal["access_token", "refresh_token"]) -> str | None:
+        return redis_client.get(f"{token_type}:{user_id}:{device_id}")
 
     @staticmethod
-    def delete_refresh_token(user_id: str, device_id: str) -> None:
-        redis_client.delete(f"refresh_token:{user_id}:{device_id}")
+    def delete_token(user_id: str, device_id: str, token_type: Literal["access_token", "refresh_token"]) -> None:
+        redis_client.delete(f"{token_type}:{user_id}:{device_id}")
 
     @staticmethod
-    def get_all_refresh_tokens(user_id: str) -> list[str]:
-        pattern = f"refresh_token:{user_id}:*"
+    def get_all_tokens(user_id: str, token_type: Literal["access_token", "refresh_token"]) -> list[str]:
+        pattern = f"{token_type}:{user_id}:*"
         keys = redis_client.keys(pattern)
         tokens = []
         for key in keys:
@@ -44,8 +52,8 @@ class TokenHelper:
         return tokens
 
     @staticmethod
-    def delete_all_refresh_tokens(user_id: str) -> None:
-        pattern = f"refresh_token:{user_id}:*"
+    def delete_all_tokens(user_id: str, token_type: Literal["access_token", "refresh_token"]) -> None:
+        pattern = f"{token_type}:{user_id}:*"
         keys = redis_client.keys(pattern)
         if keys:
             redis_client.delete(*keys)

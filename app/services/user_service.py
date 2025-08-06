@@ -77,7 +77,8 @@ class UserService:
 
         try:
             user.status = "LEAVE"
-            redis_helper.jwt.delete_all_refresh_tokens(user_id)
+            redis_helper.jwt.delete_all_tokens(user_id, "access_token")
+            redis_helper.jwt.delete_all_tokens(user_id, "refresh_token")
             session.commit()
         except Exception as e:
             session.rollback()
@@ -139,4 +140,5 @@ class UserService:
             except:
                 redis_helper.jwt.blacklist(token, 3600)
 
-        redis_helper.jwt.delete_all_refresh_tokens(user_id)
+        redis_helper.jwt.delete_all_tokens(user_id, "refresh_token")
+        redis_helper.jwt.delete_all_tokens(user_id, "access_token")

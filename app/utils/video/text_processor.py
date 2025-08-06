@@ -21,11 +21,11 @@ class TextProcessor:
 
         self.temp_dir = get_temp_dir("text_processor")
 
-    def create_text_clip(
+    def create_text_clips(
         self,
         caption: CaptionInfo,
         current_time: float = 0,
-    ) -> TextClip:
+    ) -> Union[TextClip, List[TextClip]]:
 
         animation_effect = caption.animation_effect or AnimationEffect.NONE
 
@@ -43,12 +43,12 @@ class TextProcessor:
         }
 
         # 스타일 효과를 애니메이션 생성 시점에 적용하도록 수정
-        base_text_clip = animation_renderer[animation_effect](caption, current_time)
+        base_text_clips = animation_renderer[animation_effect](caption, current_time)
 
         if animation_effect == AnimationEffect.NONE:
-            base_text_clip = self.process_text_clip(base_text_clip, caption)
+            base_text_clips = self.process_text_clip(base_text_clips, caption)
 
-        return base_text_clip
+        return base_text_clips
 
     def get_text_config_copy_with_style_effects(self, caption: CaptionInfo) -> dict:
         config = self.base_text_config.copy()
