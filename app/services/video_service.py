@@ -7,7 +7,8 @@ from moviepy import (
 )
 from moviepy.video import fx as vfx
 from app.models.schemas import ShortsVideoRequest, BGMType, Scene, TransitionType
-from app.core.service_locator import get_google_ai_service
+
+# from app.core.service_locator import get_google_ai_service
 from app.utils.video.video_processor import VideoProcessor
 from moviepy.video.compositing.CompositeVideoClip import CompositeVideoClip
 from app.utils.video.audio_processor import AudioProcessor
@@ -33,19 +34,14 @@ class VideoService:
         self.audio_processor = AudioProcessor()
         self.text_processor = TextProcessor(self.video_width, self.video_height)
         self.io_processor = IOProcessor()
-        self.google_ai_service = get_google_ai_service()
+        # self.google_ai_service = get_google_ai_service()
 
     def _is_gif_file(self, file_path: str) -> bool:
-        # 확장자로 먼저 확인
         if file_path.lower().endswith(".gif"):
             return True
-
-        # MIME 타입으로 확인
         mime_type, _ = mimetypes.guess_type(file_path)
         if mime_type == "image/gif":
             return True
-
-        # 파일 헤더로 확인
         try:
             with open(file_path, "rb") as f:
                 header = f.read(6)
@@ -61,29 +57,18 @@ class VideoService:
                 return target_clip
             elif scene.image_url is not None:
                 image_path = await self.io_processor.download_file(scene.image_url)
-
-                # GIF 파일인지 확인하고 적절히 처리
                 if self._is_gif_file(image_path):
                     target_clip = VideoFileClip(image_path).with_effects([vfx.Loop(duration=scene.duration)])
                     return target_clip
                 else:
-                    # 일반 이미지 처리
                     with Image.open(image_path) as pil_image:
                         if pil_image.mode != "RGB":
                             pil_image = pil_image.convert("RGB")
-                        image_array = np.array(pil_image)  # with 블록 안에서 변환
+                        image_array = np.array(pil_image)
                     target_clip = ImageClip(image_array, duration=scene.duration)
                     return target_clip
             else:
-                # 이후에 잘 사용하지는 않을거라 비효율적으로 구성
-                image_url = await self.google_ai_service.generate_shorts_image(scene.description)
-                temp_image_path = await self.io_processor.download_file(image_url)
-                with Image.open(temp_image_path) as pil_image:
-                    if pil_image.mode != "RGB":
-                        pil_image = pil_image.convert("RGB")
-                    image_array = np.array(pil_image)  # with 블록 안에서 변환
-                target_clip = ImageClip(image_array, duration=scene.duration)
-                return target_clip
+                raise ServerException("scene마다 image_url 또는 video_url이 필요합니다.")
         except Exception as e:
             logging.error(f"Scene media processing error: {str(e)}")
             raise e
@@ -124,12 +109,10 @@ class VideoService:
                 )
                 audio_clips.append(background_music)
 
-            # 모든 scene의 미디어와 음성을 병렬로 처리
             media_tasks = [self._process_scene_media(scene) for scene in request.scenes]
             voice_tasks = [self._process_scene_voice(scene) for scene in request.scenes]
 
             try:
-                # 병렬 실행 - 개별 작업 실패가 전체를 중단시키지 않도록 return_exceptions=True 사용
                 media_results = await asyncio.gather(*media_tasks)
                 voice_results = await asyncio.gather(*voice_tasks)
             except Exception as e:
@@ -139,12 +122,11 @@ class VideoService:
                     data={"original_error": str(e), "error_type": e.__class__.__name__},
                 )
 
-            current_time = 0  # 합성 비디오를 만들기 위한 누적 시간
+            current_time = 0
 
             for i, scene in enumerate(request.scenes):
                 target_clip = media_results[i]
 
-                # voice_clip 처리 - 예외인 경우 None으로 처리
                 voice_clip = None
                 if not isinstance(voice_results[i], Exception):
                     voice_clip = voice_results[i]
@@ -163,8 +145,6 @@ class VideoService:
                 new_width = int(clip_width * scale_ratio)
                 new_height = int(clip_height * scale_ratio)
 
-                x_center = (self.video_width - new_width) // 2
-                y_center = (self.video_height - new_height) // 2
                 target_clip = target_clip.resized(width=new_width, height=new_height).with_position(
                     ("center", "center")
                 )
@@ -172,12 +152,12 @@ class VideoService:
                 target_clip = self.video_processor.create_transition_clip(
                     target_clip,
                     "in",
-                    transition_types=[TransitionType.SLIDE_DOWN],
+                    transition_types=scene.transition_in_effects,
                 )
                 target_clip = self.video_processor.create_transition_clip(
                     target_clip,
                     "out",
-                    transition_types=[TransitionType.SLIDE_UP],
+                    transition_types=scene.transition_out_effects,
                 )
 
                 video_clips.append(target_clip)

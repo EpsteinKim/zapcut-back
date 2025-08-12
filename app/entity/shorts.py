@@ -8,7 +8,8 @@ class Shorts(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(index=True)
-    project_name: str = Field(max_length=50)
+    status: str = Field(default="ACTIVE")  # ACTIVE, DELETED
+    title: str = Field(max_length=50)
     shorts_json: Dict[str, Any] = Field(sa_type=JSON)
     created_at: Optional[datetime] = Field(default_factory=datetime.now, nullable=False)
     updated_at: Optional[datetime] = Field(default_factory=datetime.now, nullable=False)

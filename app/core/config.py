@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
+    impersonation_token_expire_minutes: int = 10
 
     # email
     brevo_key: str
@@ -50,6 +51,12 @@ class Settings(BaseSettings):
     redis_port: int = 6379
     redis_password: str = ""
     redis_db: int = 0
+
+    # Pixabay
+    pixabay_api_key: str
+
+    # Admin
+    admin_user_ids: str = ""
 
     class Config:
         env_file = str(ROOT_DIR / ".env")

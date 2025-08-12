@@ -5,13 +5,9 @@ import aiohttp
 # import tempfile  # 제거
 from app.exceptions.http_exceptions import ServerException
 import mimetypes
-import requests
 from io import BytesIO
 from PIL import Image
 from app.utils.os_processor import get_temp_dir
-from app.core.config import get_settings
-
-settings = get_settings()
 
 
 class IOProcessor:

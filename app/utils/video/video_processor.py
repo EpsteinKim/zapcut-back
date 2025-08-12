@@ -45,6 +45,10 @@ class VideoProcessor:
         duration: float = 0.5,
         transition_types: list[TransitionTypeModel] | None = [],
     ) -> VideoClip:
+        if len(transition_types) == 0:
+            return clip
+        else:
+            print(transition_types)
 
         def combined_effect_function(get_frame, t):
             frame = get_frame(t)  # NumPy 배열 (현재 클립의 프레임)
@@ -71,8 +75,9 @@ class VideoProcessor:
             if TransitionType.BLUR in transition_types:
                 current_pil_img = self._apply_blur_effect(current_pil_img, progress, type)
 
-            slide_type = [t for t in transition_types if "SLIDE" in t][0]
-            if slide_type:
+            slide_type = [t for t in transition_types if "SLIDE" in t]
+            if len(slide_type) >= 1:
+                slide_type = slide_type[0]
                 current_pil_img = self._apply_slide_effect(current_pil_img, progress, type, slide_type)
             final_frame_np = np.array(current_pil_img).astype(frame.dtype)
 
@@ -99,14 +104,12 @@ class VideoProcessor:
         return pil_img.rotate(current_angle, expand=True, resample=Image.Resampling.BICUBIC)
 
     def _apply_scale_effect(self, pil_img: Image.Image, progress: float, type: Literal["in", "out"]) -> Image.Image:
-        max_scale_factor = 1.2  # 최대 확대 비율 (필요시 파라미터화)
+        # max_scale_factor = 1.2  # 최대 확대 비율 (필요시 파라미터화)
 
         if type == "in":
-            current_scale = max_scale_factor - (max_scale_factor - 1.0) * self._progress_to_eased_progress(
-                progress, type
-            )
+            current_scale = 0.3 + (1.0 - 0.3) * self._progress_to_eased_progress(progress, type)
         elif type == "out":
-            current_scale = 1.0 + (max_scale_factor - 1.0) * self._progress_to_eased_progress(progress, type)
+            current_scale = 1.0 + (0.3 - 1.0) * self._progress_to_eased_progress(progress, type)
         else:
             current_scale = 1.0  # 기본값
 
@@ -151,34 +154,55 @@ class VideoProcessor:
         paste_x = 0
         paste_y = 0
 
-        # 이미지의 현재 중앙 위치 (pil_img는 이미 회전/스케일로 인해 커질 수 있음)
-        pil_img_center_x = pil_img.width / 2
-        pil_img_center_y = pil_img.height / 2
-
         # 비디오 중앙 위치
         video_center_x = self.video_width / 2
         video_center_y = self.video_height / 2
 
+        # 이미지의 중앙 위치
+        image_center_x = pil_img.width / 2
+        image_center_y = pil_img.height / 2
+
         progress_eased = self._progress_to_eased_progress(progress, type)
 
         if transcription_type == "SLIDE_DOWN":
-            start_y_offset = -pil_img.height
-            end_y_offset = video_center_y - pil_img_center_y
-
+            if type == "in":
+                start_y_offset = -pil_img.height  # 완전히 화면 위로
+                end_y_offset = video_center_y - image_center_y
+            elif type == "out":
+                start_y_offset = video_center_y - image_center_y
+                end_y_offset = self.video_height  # 완전히 화면 아래로
             paste_y = start_y_offset + (end_y_offset - start_y_offset) * progress_eased
+            paste_x = video_center_x - image_center_x
         elif transcription_type == "SLIDE_UP":
-            start_y_offset = video_center_y - pil_img_center_y
-            end_y_offset = pil_img.height
-
+            if type == "in":
+                start_y_offset = self.video_height  # 완전히 화면 아래로
+                end_y_offset = video_center_y - image_center_y
+            elif type == "out":
+                start_y_offset = video_center_y - image_center_y
+                end_y_offset = -pil_img.height  # 완전히 화면 위로
             paste_y = start_y_offset + (end_y_offset - start_y_offset) * progress_eased
+            paste_x = video_center_x - image_center_x
         elif transcription_type == "SLIDE_LEFT":
-            start_x_offset = -pil_img.width
-            end_x_offset = video_center_x - pil_img_center_x
+            if type == "in":
+                start_x_offset = self.video_width  # 완전히 화면 오른쪽으로
+                end_x_offset = video_center_x - image_center_x
+            elif type == "out":
+                start_x_offset = video_center_x - image_center_x
+                end_x_offset = -pil_img.width  # 완전히 화면 왼쪽으로
             paste_x = start_x_offset + (end_x_offset - start_x_offset) * progress_eased
+            paste_y = video_center_y - image_center_y
         elif transcription_type == "SLIDE_RIGHT":
-            start_x_offset = video_center_x - pil_img_center_x
-            end_x_offset = pil_img.width
+            if type == "in":
+                start_x_offset = -pil_img.width  # 완전히 화면 왼쪽으로
+                end_x_offset = video_center_x - image_center_x
+            elif type == "out":
+                start_x_offset = video_center_x - image_center_x
+                end_x_offset = self.video_width  # 완전히 화면 오른쪽으로
             paste_x = start_x_offset + (end_x_offset - start_x_offset) * progress_eased
+            paste_y = video_center_y - image_center_y
+
+        # 슬라이드 진행률에 따른 블러 효과 적용 (속도감 표현)
+        max_slide_blur_radius = 20  # 최대 블러 강도
 
         final_canvas.paste(pil_img, (int(paste_x), int(paste_y)))
         return final_canvas

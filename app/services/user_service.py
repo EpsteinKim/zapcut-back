@@ -92,6 +92,9 @@ class UserService:
         existing_phone = session.exec(select(User).where(User.phone == phone)).first()
         return existing_phone is not None
 
+    def find_user_by_user_id(self, session: Session, user_id: str) -> User | None:
+        return session.exec(select(User).where(User.user_id == user_id)).first()
+
     def find_user_by_email(self, session: Session, email: str) -> User | None:
         """이메일로 사용자 찾기"""
         return session.exec(select(User).where(User.email == email)).first()

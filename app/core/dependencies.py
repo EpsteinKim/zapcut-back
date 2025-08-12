@@ -5,6 +5,7 @@ from app.services.video_service import VideoService
 from app.services.crawling_service import CrawlingService
 from app.services.email_service import EmailService
 from app.services.sms_service import SMSService
+from app.services.shortscript_service import ShortScriptService
 from app.utils import auth_helper
 from app.utils import redis_helper
 from app.entity.user import User
@@ -31,6 +32,7 @@ class Services:
         self.user = UserService()  # session 제거
         self.email = EmailService()
         self.sms = SMSService()
+        self.shortscript = ShortScriptService()
         self._session = session  # session을 별도로 저장
 
     @property
@@ -101,6 +103,12 @@ async def get_current_user(
 
         if not user_id or token_device_id != device_id:
             raise credentials_exception
+
+        act = payload.get("act")
+        if isinstance(act, dict):
+            actor_sub = act.get("sub")
+            if actor_sub:
+                setattr(request.state, "actor_user_id", actor_sub)
 
     except UnauthorizedException:
         raise

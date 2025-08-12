@@ -15,6 +15,8 @@ from app.controller import (
     test_controller,
     user_controller,
     verification_controller,
+    pixabay_controller,
+    admin_controller,
 )
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,12 +55,14 @@ app.add_exception_handler(HTTPException, exception_handler)
 app.add_exception_handler(Exception, exception_handler)
 
 
+app.include_router(pixabay_controller.router, prefix="/api/v1", tags=["pixabay_controller"])
 app.include_router(shorts_controller.router, prefix="/api/v1", tags=["shorts_controller"])
 app.include_router(crawling_controller.router, prefix="/api/v1", tags=["crawling_controller"])
 app.include_router(proxy_controller.router, prefix="/api/v1", tags=["proxy_controller"])
 app.include_router(test_controller.router, prefix="/api/v1", tags=["test_controller"])
 app.include_router(user_controller.router, prefix="/api/v1", tags=["user_controller"])
 app.include_router(verification_controller.router, prefix="/api/v1", tags=["verification_controller"])
+app.include_router(admin_controller.router, prefix="/api/v1", tags=["admin_controller"])
 
 # 로거 설정
 logging.basicConfig(level=logging.INFO)

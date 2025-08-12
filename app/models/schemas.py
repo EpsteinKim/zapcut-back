@@ -1,4 +1,5 @@
 from enum import Enum
+from datetime import datetime
 from pydantic import BaseModel
 from typing import List, TypeVar, Generic, ClassVar, Literal
 from fastapi import Query
@@ -158,10 +159,48 @@ class CaptionInfo(BaseModel):
 class Scene(BaseModel):
     duration: float | None = None
     captions: List[CaptionInfo] | None = None
+    transition_in_effects: List[TransitionTypeModel] | None = []
+    transition_out_effects: List[TransitionTypeModel] | None = []
     description: str | None = None
     video_url: str | None = None
     image_url: str | None = None
     voice_url: str | None = None
+
+
+class DB_ShortsScript(BaseModel):
+    scenes: list[Scene]
+    bgm_id: BGMTypeModel
+    custom_bgm_url: str | None = None
+    bgm_volume: int
+    voice_model: TTSVoiceModel
+    voice_temperature: float
+    complete_video_url: str | None = None
+
+
+class ShortsScript(DB_ShortsScript):
+    id: int | None = None
+    title: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class ShortsScriptUpsertRequest(BaseModel):
+    id: int | None = 0
+    title: str | None = None
+    shorts_json: DB_ShortsScript
+
+
+class ShortsScriptSaveRequest(BaseModel):
+    script: DB_ShortsScript
+
+
+class ShortsScriptUpdateRequest(BaseModel):
+    script_id: str
+    script: DB_ShortsScript
+
+
+class ShortsScriptDeleteRequest(BaseModel):
+    script_id: str
 
 
 class SceneAlter(BaseModel):
@@ -169,7 +208,7 @@ class SceneAlter(BaseModel):
     description: str
 
 
-class ShortsScriptRequest(BaseModel):
+class ShortsScriptGenerateRequest(BaseModel):
     page_html: str | None = None
     user_prompt: str | None = None
 
@@ -185,6 +224,11 @@ class ShortsVoiceRequest(BaseModel):
     voice_temperature: float = 0.3
 
 
+class ShortsVoiceSubClipRequest(BaseModel):
+    voice_url: str
+    text_scenes: list[str]
+
+
 class ShortsMakeSyncedSceneRequest(BaseModel):
     scenes: list[Scene]
     audio_url: str
@@ -193,8 +237,10 @@ class ShortsMakeSyncedSceneRequest(BaseModel):
 class ShortsTranscriptionRequest(BaseModel):
     audio_url: str
     text_scenes: list[str]
+    regenerate: bool = False
 
 
+# ShortsScript에 해당하는 부분
 class ShortsVideoRequest(BaseModel):
     scenes: List[Scene]
     bgm_id: BGMTypeModel | None = None
@@ -248,3 +294,24 @@ class ResetPasswordRequest(BaseModel):
     email: str
     new_password: str
     uuid: str
+
+
+class GoogleAiSimpleCaptionInfo(BaseModel):
+    text: str
+    start_time: float
+    end_time: float
+
+
+class GoogleAiSimpleScene(BaseModel):
+    captions: list[GoogleAiSimpleCaptionInfo]
+
+
+class ImpersonationIssueRequest(BaseModel):
+    target_user_id: str
+    reason: str | None = None
+
+
+class ImpersonationIssueResponse(BaseModel):
+    jti: str
+    actor_user_id: str
+    target_user_id: str

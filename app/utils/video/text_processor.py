@@ -54,7 +54,7 @@ class TextProcessor:
         config = self.base_text_config.copy()
         config["text"] = caption.text
         config["color"] = caption.color
-        config["font"] = FontFamily.get_file_path(caption.font_family)
+        config["font"] = FontFamily.get_file_path(caption.font_family or "JUA")
 
         return config
 

@@ -13,6 +13,7 @@ import numpy as np
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
 from app.models.schemas import (
+    GoogleAiSimpleScene,
     ShortsMakeSyncedSceneRequest,
     TTSVoiceModel,
     Scene,
@@ -216,24 +217,35 @@ class GoogleAIService:
                     raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
                 await asyncio.sleep(1)
 
-    async def sync_scene_voice(self, text: str, duration: float, voice_url: str) -> str:
-        class SimpleCaptionInfo(BaseModel):
-            text: str
-            start_time: float
-            end_time: float
+    async def summarize_text(self, text: str):
+        system_prompt = f"""
+            You are an expert project title generator. 
+            The following text will be used as the basis for a new project. 
+            Your task is to create a concise, catchy, and relevant project title in Korean that best represents the content and purpose of the text. 
+            Only return the title, without any additional explanation or formatting.
+        """
 
-        class SimpleScene(BaseModel):
-            captions: list[SimpleCaptionInfo]
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.0-flash-lite",
+            contents=[system_prompt, text],
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        return response.text
+
+    async def sync_scene_voice(self, text: str, duration: float, voice_url: str) -> str:
 
         system_prompt = f"""
             You are a professional YouTube Shorts caption generator. Create precise captions that sync with the provided voice audio.
             
             STRICT REQUIREMENTS:
-            1. Each caption text must be EXACTLY 20 characters or less (including spaces and punctuation)
-            2. Each caption must contain at least 4 meaningful characters (excluding spaces)
-            3. If a caption would be too short (less than 4 non-space characters), combine it intelligently with adjacent text
-            4. The total duration of all captions MUST exactly match the provided duration - this is non-negotiable
-            5. ALL text from the user's input must be included across the captions - no text should be omitted
+            1. ALL text from the user's input must be included across the captions - no text should be omitted
+            2. Each caption text must be EXACTLY 20 characters or less (including spaces and punctuation)
+            3. Each caption must contain at least 4 meaningful characters (excluding spaces)
+            4. If a caption would be too short (less than 4 non-space characters), combine it intelligently with adjacent text
+            5. The total duration of all captions MUST exactly match the provided duration - this is non-negotiable
             6. REMOVE all commas(,), periods(.), and emojis from the captions, EXCEPT when they are part of a number (e.g., decimal points like 3.14 or thousand separators like 1,000 must be preserved).
             7. There must be at least a 0.02 second gap between the end of one caption and the start of the next caption. No captions should overlap in time.
             
@@ -259,9 +271,28 @@ class GoogleAIService:
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
-                response_schema=SimpleScene,
+                response_schema=GoogleAiSimpleScene,
                 thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
             ),
         )
 
         return json.loads(response.text)
+
+    async def summarize(self, text: str):
+        system_prompt = f"""
+            - Analyze the given text and identify its key concept words.
+            - Return only 1 ~ 2 English words.
+            - If you return 2 words, join them with a single "+" without spaces (e.g., pen+book).
+            - If you return 1 word, output the single word only.
+            - Output must contain only the words in English (no quotes, punctuation, or extra text).            
+        """
+
+        response = await self.client.aio.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[system_prompt, text],
+            config=genai.types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
+            ),
+        )
+        return response.text
