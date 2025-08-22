@@ -1,3 +1,4 @@
+from aiohttp_socks import ProxyConnector
 from fastapi import APIRouter, Depends
 from app.models.schemas import (
     ApiResponse,
@@ -21,11 +22,14 @@ from app.core.dependencies import get_current_user, get_services, Services
 from app.entity.user import User
 from app.utils.io_processor import IOProcessor
 from app.utils.video.audio_processor import AudioProcessor
+from app.core.config import get_settings
+import aiohttp
 
 
 router = APIRouter(prefix="/shorts", dependencies=[Depends(get_current_user)])
 io_processor = IOProcessor()
 audio_processor = AudioProcessor()
+settings = get_settings()
 
 
 @router.get("/script/{script_id}")
@@ -87,8 +91,19 @@ async def get_initial_scenes(request: ShortsScriptGenerateRequest, services: Ser
 
 @router.post("/video")
 async def create_shorts_video(request: ShortsVideoRequest, services: Services = Depends(get_services)):
-    download_url = await services.video.create_video(request)
-    return ApiResponse.with_data(download_url)
+    if settings.env == "dev":
+        connector = ProxyConnector.from_url("socks5://54.180.39.0:9111")
+        async with aiohttp.ClientSession(connector=connector) as session:
+            async with session.post(
+                f"{settings.kube_api_base}/api/v1/shorts/video",
+                json=request.model_dump(),
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                return ApiResponse.with_data(data.get("data", data))
+    else:
+        download_url = await services.video.create_video(request)
+        return ApiResponse.with_data(download_url)
 
 
 @router.post("/image")

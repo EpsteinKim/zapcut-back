@@ -53,11 +53,7 @@ async def recommend_pixabay_media(
     summary = await services.google_ai.summarize(description)
 
     base_url = "https://pixabay.com/api/"
-    params = {
-        "key": settings.pixabay_api_key,
-        "q": summary,
-        "image_type": image_type,
-    }
+    params = {"key": settings.pixabay_api_key, "q": summary, "image_type": image_type, "safesearch": "true"}
 
     print(summary)
 

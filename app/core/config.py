@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Admin
     admin_user_ids: str = ""
 
+    # Video Renderer (external worker)
+    kube_api_base: str
+
     class Config:
         env_file = str(ROOT_DIR / ".env")
 

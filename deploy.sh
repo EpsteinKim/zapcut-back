@@ -87,7 +87,7 @@ EOF
     
     # 프로젝트 파일 전송
     echo "📤 Uploading project files..."
-    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
+    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='video_rendering_eks' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
     
     # 원격으로 프로젝트 설정
     ssh -q root@zapcut << 'EOF'
@@ -153,7 +153,7 @@ REMOTE_EOF
 
     # 프로젝트 파일 동기화
     echo "📤 프로젝트 파일 동기화 중..."
-    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
+    rsync -avz --exclude='venv' --exclude="deploy.sh" --exclude="*.rdb" --exclude='.git' --exclude='video_rendering_eks' --exclude='__pycache__' --exclude='*.pyc' --exclude='nginx-logs' --exclude='temp_blue' --exclude='temp_green' ./ root@zapcut:~/zapcut-back/
 
     ssh -q root@zapcut << 'DEPLOY_EOF'
         cd ~/zapcut-back
@@ -237,32 +237,6 @@ REMOTE_EOF
         echo "배포가 완료되었습니다. change 를 통해 환경을 전환해주세요."
 
 DEPLOY_EOF
-}
-
-dev_test() {
-    ssh -q root@zapcut << 'EOF'
-        cd ~/zapcut-back
-
-        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-blue"; then
-            if [ -f ./nginx/nginx.conf ]; then
-                sed -i '/# *upstream zapcut-api-blue {/,/# *}/s/^# *//' ./nginx/nginx.conf
-            fi
-        else
-            if [ -f ./nginx/nginx.conf ]; then
-                sed -i '/upstream zapcut-api-blue {/,/}/s/^/# /' ./nginx/nginx.conf
-            fi
-        fi
-
-        if docker ps --format "table {{.Names}}" | grep -q "zapcut-api-green"; then
-            if [ -f ./nginx/nginx.conf ]; then
-                sed -i '/# *upstream zapcut-api-green {/,/# *}/s/^# *//' ./nginx/nginx.conf
-            fi
-        else
-            if [ -f ./nginx/nginx.conf ]; then
-                sed -i '/upstream zapcut-api-green {/,/}/s/^/# /' ./nginx/nginx.conf
-            fi
-        fi
-EOF
 }
 
 check_status() {
@@ -501,6 +475,142 @@ start_api() {
         fi
 EOF
 }
+dev_test() {
+    echo "dev_test"
+}
+upload_kube_docker() {
+	if [ ! -f video_rendering_eks/aws_key ]; then
+		echo "video_rendering_eks/aws_key 파일이 없습니다."
+		exit 1
+	fi
+
+	AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_REGION=$(grep '^AWS_REGION=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	DOCKER_IMAGE_NAME=$(grep '^DOCKER_IMAGE_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+
+	if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ] || [ -z "$DOCKER_IMAGE_NAME" ]; then
+		echo "aws_key 파일 형식을 확인하세요."
+		exit 1
+	fi
+
+	aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+	aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+	aws configure set region "$AWS_REGION"
+
+	REPO_NAME="${DOCKER_IMAGE_NAME}"
+	TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+	IMAGE_TAG="${TIMESTAMP}"
+	ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+	ECR_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}"
+
+	aws ecr describe-repositories --repository-names "${REPO_NAME}" >/dev/null 2>&1 || \
+		aws ecr create-repository --repository-name "${REPO_NAME}" --region "${AWS_REGION}"
+
+	aws ecr get-login-password --region "${AWS_REGION}" | \
+		docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+	echo "📦 이미지 빌드: ${ECR_URI}:${IMAGE_TAG}"
+	docker build -t "${REPO_NAME}:${IMAGE_TAG}" -f video_rendering_eks/Dockerfile .
+	docker tag "${REPO_NAME}:${IMAGE_TAG}" "${ECR_URI}:${IMAGE_TAG}"
+	docker push "${ECR_URI}:${IMAGE_TAG}"
+
+	echo "✅ 업로드 완료: ${ECR_URI}:${IMAGE_TAG}"
+	echo "다음으로 배포에서 이미지 지정: ${ECR_URI}:${IMAGE_TAG}"
+	
+	# 타임스탬프를 파일에 저장
+	echo "${IMAGE_TAG}" > video_rendering_eks/.last_build_tag
+}
+
+init_kubernates() {
+	if [ ! -f video_rendering_eks/aws_key ]; then
+		echo "video_rendering_eks/aws_key 파일이 없습니다."
+		exit 1
+	fi
+
+	AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_REGION=$(grep '^AWS_REGION=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	CLUSTER_NAME=$(grep '^CLUSTER_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	DOCKER_IMAGE_NAME=$(grep '^DOCKER_IMAGE_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+
+	if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ]; then
+		echo "aws_key 파일 형식을 확인하세요."
+		exit 1
+	fi
+
+	aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+	aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+	aws configure set region "$AWS_REGION"
+
+	if [ -n "$CLUSTER_NAME" ]; then
+		aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+	fi
+
+	REPO_NAME="${DOCKER_IMAGE_NAME}"
+	ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+	IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:latest"
+
+	kubectl get ns zapcut-renderer >/dev/null 2>&1 || kubectl create namespace zapcut-renderer
+    kubectl config set-context --current --namespace=zapcut-renderer
+	kubectl apply -f video_rendering_eks/storage-class.yaml
+	kubectl apply -f video_rendering_eks/pvc.yaml
+    kubectl apply -f video_rendering_eks/service.yaml
+	kubectl apply -f video_rendering_eks/deployment.yaml
+	kubectl apply -f video_rendering_eks/hpa.yaml
+	kubectl rollout status deployment/zapcut-renderer
+	echo "kubectl logs -f deploy/zapcut-renderer"
+}
+aws_login() {
+    if [ ! -f video_rendering_eks/aws_key ]; then
+		echo "video_rendering_eks/aws_key 파일이 없습니다."
+		exit 1
+	fi
+
+	AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	AWS_REGION=$(grep '^AWS_REGION=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	CLUSTER_NAME=$(grep '^CLUSTER_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+	DOCKER_IMAGE_NAME=$(grep '^DOCKER_IMAGE_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+
+	if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ]; then
+		echo "aws_key 파일 형식을 확인하세요."
+		exit 1
+	fi
+
+	aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+	aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+	aws configure set region "$AWS_REGION"
+
+	if [ -n "$CLUSTER_NAME" ]; then
+		aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+	fi
+}
+kube_deploy() {
+     echo "🔄 무중단 배포 시작..."
+            
+    # 이미지 강제 업데이트
+    REPO_NAME=$(grep '^DOCKER_IMAGE_NAME=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+    AWS_REGION=$(grep '^AWS_REGION=' video_rendering_eks/aws_key | cut -d'=' -f2-)
+    
+    # 저장된 타임스탬프 사용
+    if [ -f video_rendering_eks/.last_build_tag ]; then
+        TIMESTAMP=$(cat video_rendering_eks/.last_build_tag)
+    else
+        echo "❌ 빌드 태그 파일이 없습니다. 먼저 'kube ecr'을 실행하세요."
+        exit 1
+    fi
+    IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO_NAME}:${TIMESTAMP}"
+    
+    echo "📦 이미지 업데이트: ${IMAGE_URI}"
+    kubectl set image deployment/zapcut-renderer renderer="${IMAGE_URI}" -n zapcut-renderer
+    
+    kubectl rollout status deployment/zapcut-renderer -n zapcut-renderer
+    echo "✅ 배포 완료!"
+    echo "🌐 접근 URL: $(kubectl get svc zapcut-renderer-service -n zapcut-renderer -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')"
+}
+
 
 case $1 in
     api)
@@ -524,6 +634,34 @@ case $1 in
     test)
         dev_test
         ;;
+    kube)
+        if [ "$2" = "logs" ]; then
+            kubectl logs -f deploy/zapcut-renderer -n zapcut-renderer --tail=100
+        elif [ "$2" = "login" ]; then
+            aws_login
+        elif [ "$2" = "top" ]; then
+            echo "🔄 실시간 자원 모니터링 (Ctrl+C 종료)"
+            echo -en "\033[s"
+            
+            while true; do
+                echo -en "\033[u"
+                echo "📊 $(date '+%H:%M:%S') | Pod: $(kubectl top pods -n zapcut-renderer 2>/dev/null | tail -n +2 | wc -l)개"
+                kubectl top pods -n zapcut-renderer 2>/dev/null || echo "로딩 중..."
+                echo ""
+                echo "HPA: $(kubectl get hpa -n zapcut-renderer -o jsonpath='{.items[0].status.currentReplicas}/{.items[0].spec.maxReplicas}' 2>/dev/null || echo 'N/A')"
+                sleep 1
+            done
+        elif [ "$2" = "ecr" ]; then
+            upload_kube_docker $3 $4
+        elif [ "$2" = "init" ]; then
+            init_kubernates $3 $4
+        elif [ "$2" = "deploy" ]; then
+            kube_deploy
+        else
+            echo "Usage: $0 kube {ecr|init|deploy|logs|login|top}"
+            exit 1
+        fi
+        ;;
     logs)
         logs $2
         ;;
@@ -538,7 +676,7 @@ case $1 in
         ssh -q root@zapcut "cd ~/zapcut-back && docker exec -it zapcut-redis redis-cli"
         ;;
     *)
-        echo "Usage: $0 {api|init|check|switch|stop|start|logs}"
+        echo "Usage: $0 {api|init|check|switch|stop|start|test|upload|logs}"
         echo ""
         echo "명령어 설명:"
         echo "  api      - 블루그린 배포"
@@ -547,8 +685,11 @@ case $1 in
         echo "  switch   - 환경 전환"
         echo "  stop     - API 서비스 중지"
         echo "  start    - API 서비스 시작"
+        echo "  test     - EKS kubeconfig 및 스토리지(class, pvc) 적용"
+        echo "  upload   - video_rendering_eks 이미지를 ECR로 빌드/푸시 (옵션: [repo] [tag])"
         echo "  nginx    - Nginx 서비스 (start|stop)"
         echo "  logs     - 실시간 로그 확인 (blue|green|nginx|redis|all)"
+        echo "  kube     - EKS 관리 (ecr|init|deploy|logs|login|top)"
         exit 1
         ;;
 esac

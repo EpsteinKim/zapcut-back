@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zapcut-renderer-service
+  namespace: zapcut-renderer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-source-ranges: "54.180.39.0/24"
+spec:
+  type: LoadBalancer
+  selector:
+    app: zapcut-renderer
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

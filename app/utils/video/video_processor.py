@@ -47,8 +47,6 @@ class VideoProcessor:
     ) -> VideoClip:
         if len(transition_types) == 0:
             return clip
-        else:
-            print(transition_types)
 
         def combined_effect_function(get_frame, t):
             frame = get_frame(t)  # NumPy 배열 (현재 클립의 프레임)
@@ -200,9 +198,6 @@ class VideoProcessor:
                 end_x_offset = self.video_width  # 완전히 화면 오른쪽으로
             paste_x = start_x_offset + (end_x_offset - start_x_offset) * progress_eased
             paste_y = video_center_y - image_center_y
-
-        # 슬라이드 진행률에 따른 블러 효과 적용 (속도감 표현)
-        max_slide_blur_radius = 20  # 최대 블러 강도
 
         final_canvas.paste(pil_img, (int(paste_x), int(paste_y)))
         return final_canvas

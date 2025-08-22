@@ -62,5 +62,10 @@ htmlcov/
 coverage.xml
 *.cover 
 
+aws_key
+
 #local redis
 redis/dump.rdb
+
+# EKS build tags
+video_rendering_eks/.last_build_tag

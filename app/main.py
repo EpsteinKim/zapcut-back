@@ -21,9 +21,9 @@ from app.controller import (
 from app.exceptions.handlers import exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from app.middleware.timeout_middleware import TimeoutMiddleware
-from app.middleware.logging_middleware import LoggingMiddleware
-from app.core.database import create_db_and_tables
 
+from app.middleware.rate_limit_middleware import RateLimitMiddleware
+from app.core.database import create_db_and_tables
 
 app = FastAPI(
     title="ZAPCUT API",
@@ -36,11 +36,10 @@ def on_startup():
     create_db_and_tables()
 
 
-# 로깅 미들웨어 추가 (특정 경로 로그 무시)
-app.add_middleware(LoggingMiddleware)
-
 # 타임아웃 미들웨어 추가 (1분 = 60초)
 app.add_middleware(TimeoutMiddleware)
+
+# app.add_middleware(RateLimitMiddleware, max_requests=60, window_seconds=60)
 
 app.add_middleware(
     CORSMiddleware,

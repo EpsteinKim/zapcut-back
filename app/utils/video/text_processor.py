@@ -46,7 +46,7 @@ class TextProcessor:
         base_text_clips = animation_renderer[animation_effect](caption, current_time)
 
         if animation_effect == AnimationEffect.NONE:
-            base_text_clips = self.process_text_clip(base_text_clips, caption)
+            base_text_clips = [self.process_text_clip(base_text_clip, caption) for base_text_clip in base_text_clips]
 
         return base_text_clips
 

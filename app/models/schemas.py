@@ -77,7 +77,7 @@ class SoundEffect(BaseModel):
 
 # 타입 정의를 위한 Literal 타입
 TTSVoiceModel = Literal[
-    "Achernar", "Callirrhoe", "Enceladus", "Fenrir", "Kore", "Lapetus", "Leda", "Sadaltager", "Zephyr"
+    "Achernar", "Callirrhoe", "Enceladus", "Fenrir", "Kore", "Iapetus", "Leda", "Sadaltager", "Zephyr"
 ]
 
 
@@ -88,7 +88,7 @@ class VoiceModelConstants:
     Enceladus: ClassVar[str] = "Enceladus"
     Fenrir: ClassVar[str] = "Fenrir"
     Kore: ClassVar[str] = "Kore"
-    Lapetus: ClassVar[str] = "Lapetus"
+    Iapetus: ClassVar[str] = "Iapetus"
     Leda: ClassVar[str] = "Leda"
     Sadaltager: ClassVar[str] = "Sadaltager"
     Zephyr: ClassVar[str] = "Zephyr"

@@ -92,6 +92,13 @@ class ShortScriptService:
             result = session.exec(statement).first()
 
             if result:
+                if result.created_at < datetime.now() - timedelta(days=2):
+                    result.status = "DELETED"
+                    session.add(result)
+                    session.commit()
+                    session.refresh(result)
+                    raise ServerException("스크립트가 만료되어 새로 생성해야 합니다.")
+
                 result.title = request.title or await google_ai_service.summarize_text(
                     " ".join([scene.description or "" for scene in request.shorts_json.scenes])
                 )

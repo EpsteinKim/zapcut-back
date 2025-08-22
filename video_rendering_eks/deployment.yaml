@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zapcut-renderer
+  namespace: zapcut-renderer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zapcut-renderer
+  template:
+    metadata:
+      labels:
+        app: zapcut-renderer
+    spec:
+      terminationGracePeriodSeconds: 0
+      nodeSelector:
+        node.kubernetes.io/instance-type: c6g.large
+        kubernetes.io/arch: arm64
+      tolerations:
+        - key: "CriticalAddonsOnly"
+          operator: "Exists"
+          effect: "NoSchedule"
+      containers:
+        - name: renderer
+          image: 168055030674.dkr.ecr.ap-northeast-2.amazonaws.com/zapcut-video-rendering:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          env:
+            - name: TZ
+              value: Asia/Seoul
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          # 임시 디렉토리는 컨테이너 내부에서만 사용

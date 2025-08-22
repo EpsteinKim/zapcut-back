@@ -43,7 +43,7 @@ async def verify_email_code(
 
 @router.post("/email/exist")
 def check_email_exist(request: EmailRequest, service: Services = Depends(get_services)):
-    is_exist = service.user.check_email_exist(request.email)
+    is_exist = service.user.check_email_exist(service.session, request.email)
 
     if is_exist:
         return ApiResponse.error(message="이미 존재하는 이메일입니다.")
@@ -53,7 +53,7 @@ def check_email_exist(request: EmailRequest, service: Services = Depends(get_ser
 
 @router.post("/phone/exist")
 def check_phone_exist(request: PhoneRequest, service: Services = Depends(get_services)):
-    is_exist = service.user.check_phone_exist(request.phone)
+    is_exist = service.user.check_phone_exist(service.session, request.phone)
 
     if is_exist:
         return ApiResponse.error(message="이미 존재하는 전화번호입니다.")
