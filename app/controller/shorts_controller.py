@@ -91,9 +91,9 @@ async def get_initial_scenes(request: ShortsScriptGenerateRequest, services: Ser
 
 @router.post("/video")
 async def create_shorts_video(request: ShortsVideoRequest, services: Services = Depends(get_services)):
-    if settings.env == "dev":
-        connector = ProxyConnector.from_url("socks5://54.180.39.0:9111")
-        async with aiohttp.ClientSession(connector=connector) as session:
+    # connector = ProxyConnector.from_url("socks5://54.180.39.0:9111")
+    if settings.env == "production":
+        async with aiohttp.ClientSession() as session:
             async with session.post(
                 f"{settings.kube_api_base}/api/v1/shorts/video",
                 json=request.model_dump(),
