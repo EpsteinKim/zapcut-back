@@ -65,7 +65,7 @@ class GoogleAIService:
         At least each scene should have a narration of at least 10 characters.
         Write in a friendly, conversational tone in Korean.
         And the scene description should serve as a prompt for text-to-image (TTI) generation,  Do not include music descriptions.
-        
+        Description must be in Korean.
         If there is no HTML, do not include imageUrl or videoUrl.
         """
 
@@ -77,14 +77,13 @@ class GoogleAIService:
             Do not include images with an aspect ratio greater than 2:1.
             If there is no appropriate image, you can omit it.
             And please suggest different images for each scene.
-            Description must be in Korean.
             {page_html}
         """
 
         content = [user_prompt]
 
         response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash-lite",
+            model="gemini-2.5-flash",
             contents=content,
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
