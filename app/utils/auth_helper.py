@@ -1,14 +1,13 @@
 from datetime import datetime, timedelta
-from typing import Literal, Optional, Tuple
+from typing import Literal
 import hashlib
 
-from jose import jwt, JWTError
+from jose import jwt
 from passlib.context import CryptContext
 
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import UnauthorizedException
 from app.utils import redis_helper
-from app.utils.common_util import get_random_uuid
 
 # JWT 설정 로드
 settings = get_settings()
@@ -25,29 +24,26 @@ def verify_password(client_hash_password: str, server_hash_password: str, timest
 
 # {sub: user_id, device_id: device_id}, token_type: "access_token" or "refresh_token"
 # 토큰 생성 후 redis에 저장
-def create_token(data: dict, token_type: Literal["access_token", "refresh_token"]) -> str:
-    to_encode = data.copy()
+def create_token(user_id: str, device_id: str, token_type: Literal["access_token", "refresh_token"]) -> str:
     if token_type == "access_token":
         expire = datetime.utcnow() + timedelta(minutes=settings.access_token_expire_minutes)
     else:
         expire = datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days)
-    to_encode.update({"exp": expire})
+    to_encode = {"sub": user_id, "exp": expire}
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
-    redis_helper.jwt.store_token(
-        user_id=data["sub"], token=encoded_jwt, device_id=data["device_id"], token_type=token_type
-    )
+    redis_helper.jwt.store_token(user_id, encoded_jwt, device_id, token_type)
     return encoded_jwt
 
 
-def decode_token(token: str, token_type: Literal["access_token", "refresh_token"]) -> dict:
+def decode_token_and_verify(
+    token: str, device_id: str, token_type: Literal["access_token", "refresh_token", "impersonation_token"]
+) -> dict:
     try:
         if redis_helper.jwt.is_blacklisted(token):
             raise UnauthorizedException("무효화된 토큰입니다.")
 
         payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        redis_stored_token = redis_helper.jwt.get_token(
-            user_id=payload["sub"], device_id=payload["device_id"], token_type=token_type
-        )
+        redis_stored_token = redis_helper.jwt.get_token(payload["sub"], device_id, token_type)
         if redis_stored_token == token:
             return payload
         else:
@@ -69,21 +65,17 @@ def decode_token(token: str, token_type: Literal["access_token", "refresh_token"
         raise e
 
 
-def create_impersonation_token(
-    admin_user_id: str, target_user_id: str, device_id: str, reason: str | None = None, scope: str = "impersonation"
-) -> tuple[str, str]:
+def create_impersonation_token(admin_user_id: str, target_user_id: str, device_id: str) -> tuple[str, str]:
+    expire = datetime.utcnow() + timedelta(minutes=settings.impersonation_token_expire_minutes)
     to_encode = {
         "sub": target_user_id,
-        "device_id": device_id,
-        "act": {"sub": admin_user_id},
-        "scope": scope,
-        "reason": reason or "",
-        "jti": get_random_uuid(),
+        "impersonate_admin_user_id": admin_user_id,
+        "exp": expire,
     }
-    expire = datetime.utcnow() + timedelta(minutes=settings.impersonation_token_expire_minutes)
-    to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
-    redis_helper.jwt.store_token(
-        user_id=target_user_id, token=encoded_jwt, device_id=device_id, token_type="access_token"
-    )
-    return encoded_jwt, to_encode["jti"]
+    redis_helper.jwt.store_token(target_user_id, encoded_jwt, device_id, "impersonation_token")
+    return encoded_jwt
+
+
+def delete_impersonation_token(target_user_id: str, device_id: str):
+    redis_helper.jwt.delete_token(target_user_id, device_id, "impersonation_token")

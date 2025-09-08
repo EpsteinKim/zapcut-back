@@ -95,7 +95,7 @@ class GoogleAIService:
 
         return json.loads(response.text)
 
-    def translate(self, string: str, language: str):
+    async def translate(self, string: str, language: str):
         system_prompt = f"""
         Your task is to translate the input text into only {language} while maintaining the visual elements and composition details.
         Translate the input text to {language} only. Do not use any other language.
@@ -103,7 +103,7 @@ class GoogleAIService:
         Be careful not to mix English or other languages.
         """
 
-        response = self.client.models.generate_content(
+        response = await self.client.aio.models.generate_content(
             model="gemini-2.5-flash-lite",
             contents=[string],
             config=genai.types.GenerateContentConfig(
@@ -116,37 +116,41 @@ class GoogleAIService:
         return response.text
 
     async def generate_shorts_image(self, user_prompt: str, max_retries=3):
-        translated_prompt = self.translate(user_prompt, "English")
+        translated_prompt = await self.translate(user_prompt, "English")
 
-        translated_prompt = f"""
-            - must not include Content that may appear violent
-            - must not include Content that is excessively stimulating and could have negative effects on people
+        # translated_prompt = f"""
+        #     - must not include Content that may appear violent
+        #     - must not include Content that is excessively stimulating and could have negative effects on people
 
-            {translated_prompt}
-        """
+        #     {translated_prompt}
+        # """
 
         for attempt in range(max_retries):
             try:
-                response = await self.client.aio.models.generate_images(
-                    model="imagen-3.0-generate-002",
-                    prompt=translated_prompt,
-                    config=genai.types.GenerateImagesConfig(
-                        number_of_images=1, aspect_ratio="1:1", person_generation="ALLOW_ADULT"
-                    ),
+                response = await self.client.aio.models.generate_content(
+                    model="gemini-2.5-flash-image-preview",
+                    contents=[translated_prompt],
                 )
 
-                if not response.generated_images:
-                    raise Exception("No images generated from AI service")
+                # if not response.generated_images:
+                # raise Exception("No images generated from AI service")
 
-                for generated_image in response.generated_images:
-                    image_data = generated_image.image.image_bytes
-                    if isinstance(image_data, bytes):
-                        image = decode_base64_to_bytesio(image_data)
-                    else:
-                        image = BytesIO(image_data)
+                for part in response.candidates[0].content.parts:
+                    if part.text is not None:
+                        print(part.text)
+                    elif part.inline_data is not None:
+                        image = decode_base64_to_bytesio(part.inline_data.data)
+                        download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
+                        return download_url
+                # for generated_image in response.generated_images:
+                #     image_data = generated_image.image.image_bytes
+                #     if isinstance(image_data, bytes):
+                #         image = decode_base64_to_bytesio(image_data)
+                #     else:
+                #         image = BytesIO(image_data)
 
-                    download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
-                    return download_url
+                #     download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
+                #     return download_url
 
             except Exception as e:
                 logging.warning(str(e))

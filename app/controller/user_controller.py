@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Form, Header, Response, Cookie, Request
 from app.entity.user import User, UserResponse
 from app.models.schemas import ApiResponse, EmailRequest
-from app.core.dependencies import get_current_user, get_services, Services
+from app.core.dependencies import get_current_user_info, get_services, Services
 from app.utils.auth_helper import create_token
 from app.exceptions.http_exceptions import UnauthorizedException, BadRequestException, NotFoundException
 from app.core.config import get_settings
@@ -19,8 +19,10 @@ settings = get_settings()
 
 
 @router.get("/me", response_model=ApiResponse[UserResponse])
-async def read_users_me(current_user: User = Depends(get_current_user)):
-    return ApiResponse.with_data(data=UserResponse.model_validate(current_user), message="현재 사용자 정보 조회 성공!")
+async def read_users_me(current_user_info=Depends(get_current_user_info)):
+    return ApiResponse.with_data(
+        data=UserResponse.model_validate(current_user_info.user), message="현재 사용자 정보 조회 성공!"
+    )
 
 
 @router.post("/token")
@@ -35,8 +37,8 @@ async def login_for_access_token(
     user = service.user.authenticate_user(service.session, user_id, password, ts)
     device_id = service.user.get_device_id(user_agent)
 
-    access_token = create_token(data={"sub": user.user_id, "device_id": device_id}, token_type="access_token")
-    refresh_token = create_token(data={"sub": user.user_id, "device_id": device_id}, token_type="refresh_token")
+    access_token = create_token(user.user_id, device_id, "access_token")
+    refresh_token = create_token(user.user_id, device_id, "refresh_token")
     cookie_helper.set_access_token_cookie(response, access_token, device_id)
     cookie_helper.set_refresh_token_cookie(response, refresh_token, device_id)
 
@@ -71,11 +73,11 @@ async def logout(
 
 @router.delete("/logout/all")
 async def logout_all_devices(
-    current_user: User = Depends(get_current_user),
+    current_user_info=Depends(get_current_user_info),
     service: Services = Depends(get_services),
 ):
     """모든 디바이스에서 로그아웃"""
-    service.user.logout_all_devices(current_user.user_id)
+    service.user.logout_all_devices(current_user_info.user.user_id)
     return ApiResponse.ok()
 
 
@@ -133,8 +135,8 @@ async def reset_password(api_request: ResetPasswordRequest, service: Services = 
 
 @router.delete
 async def leave_user(
-    current_user: User = Depends(get_current_user),
+    current_user_info=Depends(get_current_user_info),
     service: Services = Depends(get_services),
 ):
-    service.user.leave_user(service.session, current_user.user_id)
+    service.user.leave_user(service.session, current_user_info.user.user_id)
     return ApiResponse.ok("탈퇴 처리가 성공적으로 완료되었습니다.")

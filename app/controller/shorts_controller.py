@@ -18,7 +18,7 @@ from app.models.schemas import (
 )
 from fastapi import Depends
 import asyncio
-from app.core.dependencies import get_current_user, get_services, Services
+from app.core.dependencies import get_current_user_info, get_services, Services
 from app.entity.user import User
 from app.utils.io_processor import IOProcessor
 from app.utils.video.audio_processor import AudioProcessor
@@ -26,7 +26,7 @@ from app.core.config import get_settings
 import aiohttp
 
 
-router = APIRouter(prefix="/shorts", dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/shorts", dependencies=[Depends(get_current_user_info)])
 io_processor = IOProcessor()
 audio_processor = AudioProcessor()
 settings = get_settings()
@@ -34,41 +34,41 @@ settings = get_settings()
 
 @router.get("/script/{script_id}")
 def get_script(
-    script_id: str, current_user: User = Depends(get_current_user), services: Services = Depends(get_services)
+    script_id: str, current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)
 ):
-    result = services.shortscript.get_script(services.session, current_user.id, script_id)
+    result = services.shortscript.get_script(services.session, current_user_info.user.id, script_id)
     if not result:
         return ApiResponse.error("스크립트를 찾을 수 없습니다.")
     return ApiResponse.with_data(result)
 
 
 @router.get("/scripts")
-def get_all_scripts(current_user: User = Depends(get_current_user), services: Services = Depends(get_services)):
-    result = services.shortscript.get_all_scripts(services.session, current_user.id)
+def get_all_scripts(current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)):
+    result = services.shortscript.get_all_scripts(services.session, current_user_info.user.id)
     return ApiResponse.with_data(result)
 
 
 @router.get("/script/count")
-def get_script_count(current_user: User = Depends(get_current_user), services: Services = Depends(get_services)):
-    count = services.shortscript.get_script_count(services.session, current_user.id)
+def get_script_count(current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)):
+    count = services.shortscript.get_script_count(services.session, current_user_info.user.id)
     return ApiResponse.with_data(count)
 
 
 @router.post("/script")
 async def upsert_script(
     request: ShortsScriptUpsertRequest,
-    current_user: User = Depends(get_current_user),
+    current_user_info=Depends(get_current_user_info),
     services: Services = Depends(get_services),
 ):
-    result = await services.shortscript.upsert_script(services.session, current_user.id, request)
+    result = await services.shortscript.upsert_script(services.session, current_user_info.user.id, request)
     return ApiResponse.with_data(result)
 
 
 @router.delete("/script/{script_id}")
 def delete_script(
-    script_id: str, current_user: User = Depends(get_current_user), services: Services = Depends(get_services)
+    script_id: str, current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)
 ):
-    success = services.shortscript.delete_script(services.session, current_user.id, script_id)
+    success = services.shortscript.delete_script(services.session, current_user_info.user.id, script_id)
     if not success:
         return ApiResponse.error("스크립트를 찾을 수 없습니다.")
     return ApiResponse.ok("스크립트가 삭제되었습니다.")

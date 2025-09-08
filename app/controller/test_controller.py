@@ -6,10 +6,10 @@ from app.utils.video.audio_processor import AudioProcessor
 from app.services.openai_service import OpenAIService
 from app.core.service_locator import get_openai_service
 from fastapi import Depends
-from app.core.dependencies import get_current_user, get_services, Services
+from app.core.dependencies import get_current_user_info, get_services, Services
 from app.models.schemas import ApiResponse
 
-router = APIRouter(prefix="/test", dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/test", dependencies=[Depends(get_current_user_info)])
 
 io_processor = IOProcessor()
 audio_processor = AudioProcessor()

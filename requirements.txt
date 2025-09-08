@@ -71,7 +71,7 @@ frozenlist==1.7.0
     #   aiosignal
 google-auth==2.40.2
     # via google-genai
-google-genai==1.18.0
+google-genai==1.32.0
     # via -r requirements.in
 greenlet==3.2.3
     # via playwright
@@ -255,6 +255,8 @@ sqlmodel==0.0.24
     # via -r requirements.in
 starlette==0.36.3
     # via fastapi
+tenacity==9.1.2
+    # via google-genai
 threadpoolctl==3.6.0
     # via scikit-learn
 tqdm==4.67.1

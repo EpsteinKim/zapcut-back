@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from typing import Literal
 import aiohttp
 from app.core.config import get_settings
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user_info
 from app.entity.user import User
 from app.models.schemas import ApiResponse
 from app.utils.rate_limit_util import check_user_rate_limit
@@ -17,9 +17,9 @@ settings = get_settings()
 async def search_pixabay(
     query: str,
     type: Literal["photo", "video"] = "photo",
-    current_user: User = Depends(get_current_user),
+    current_user_info=Depends(get_current_user_info),
 ):
-    check_user_rate_limit(current_user.user_id, max_requests=1, window_seconds=3, prefix="pixabay_search")
+    check_user_rate_limit(current_user_info.user.user_id, max_requests=1, window_seconds=3, prefix="pixabay_search")
 
     base_url = "https://pixabay.com/api/"
     params = {
@@ -45,10 +45,10 @@ async def search_pixabay(
 async def recommend_pixabay_media(
     description: str,
     image_type: Literal["photo", "video"] = "photo",
-    current_user: User = Depends(get_current_user),
+    current_user_info=Depends(get_current_user_info),
     services: Services = Depends(get_services),
 ):
-    check_user_rate_limit(current_user.user_id, max_requests=1, window_seconds=3, prefix="recommend_media")
+    check_user_rate_limit(current_user_info.user.user_id, max_requests=1, window_seconds=3, prefix="recommend_media")
 
     summary = await services.google_ai.summarize(description)
 

@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     secret_key: str
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
-    impersonation_token_expire_minutes: int = 10
+    impersonation_token_expire_minutes: int = 600
 
     # email
     brevo_key: str

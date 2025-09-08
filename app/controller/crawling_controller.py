@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
-from app.core.dependencies import get_current_user, get_services, Services
+from app.core.dependencies import get_current_user_info, get_services, Services
 from app.models.schemas import ApiResponse
 
 
-router = APIRouter(prefix="/crawling", dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/crawling", dependencies=[Depends(get_current_user_info)])
 
 
 @router.get("/page")  # crawling/playwright/page

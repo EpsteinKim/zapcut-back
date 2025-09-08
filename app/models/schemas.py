@@ -5,6 +5,7 @@ from typing import List, TypeVar, Generic, ClassVar, Literal
 from fastapi import Query
 
 from app.core.config import BGM_PATH, FONT_PATH
+from app.entity.user import User
 
 T = TypeVar("T")
 
@@ -28,6 +29,19 @@ class ApiResponse(BaseModel, Generic[T]):
     @classmethod
     def with_data(cls, data: T, message: str | None = None) -> "ApiResponse[T]":
         return cls(message=message or cls._OK_MESSAGE, data=data)
+
+
+class CurrentUserInfoPayload(BaseModel):
+    sub: str
+    impersonate_admin_user_id: str | None = None
+
+    class Config:
+        extra = "allow"
+
+
+class CurrentUserInfo(BaseModel):
+    user: User
+    payload: CurrentUserInfoPayload
 
 
 # Enum 대신 문자열 상수로 정의 (Google AI 스키마 호환성을 위해)
@@ -306,12 +320,5 @@ class GoogleAiSimpleScene(BaseModel):
     captions: list[GoogleAiSimpleCaptionInfo]
 
 
-class ImpersonationIssueRequest(BaseModel):
-    target_user_id: str
-    reason: str | None = None
-
-
-class ImpersonationIssueResponse(BaseModel):
-    jti: str
-    actor_user_id: str
+class ImpersonateTicketRequest(BaseModel):
     target_user_id: str

@@ -4,9 +4,9 @@ import aiohttp
 import io
 from app.exceptions.http_exceptions import ServerException
 from app.utils.io_processor import IOProcessor
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user_info
 
-router = APIRouter(prefix="/proxy", dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/proxy", dependencies=[Depends(get_current_user_info)])
 
 # S3 클라이언트 초기화 및 버킷 이름 관련 코드 제거
 # S3_BUCKET_NAME = "YOUR_S3_BUCKET_NAME"
