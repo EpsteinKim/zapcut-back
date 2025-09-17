@@ -101,6 +101,7 @@ class IOProcessor:
 
             return object_url
         except Exception as e:
+
             raise ServerException(f"파일 업로드 중 오류 발생: {str(e)}")
 
     def _get_extension_from_content_type(self, content_type: str) -> str:

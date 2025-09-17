@@ -17,7 +17,7 @@ class EmailService:
         self.api_key = settings.brevo_key
         self.base_url = "https://api.brevo.com/v3/smtp/email"
 
-    async def send_via_brevo_with_template(self, to: str, model: Dict[str, Any]) -> None:
+    async def send_via_brevo_with_template(self, to: str, model: Dict[str, Any]):
         template_id = model.pop("templateId", None)
         if not template_id:
             raise ValueError("templateId is required")
@@ -108,3 +108,5 @@ class EmailService:
         if redis_helper.find_account.exists(f"{email}_searchable"):
             redis_helper.find_account.delete_value(f"{email}_searchable")
             return True
+
+        return False

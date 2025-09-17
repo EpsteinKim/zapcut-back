@@ -12,6 +12,10 @@ def with_default_cookie_config(response: Response, key: str, value: str, max_age
         "samesite": "none" if is_production else "lax",
         "path": "/",
     }
+
+    # 프로덕션에서 Cross-origin 지원을 위해 도메인 설정
+    if is_production:
+        default_config["domain"] = ".zapcut.io"  # 서브도메인 간 쿠키 공유
     response.set_cookie(key=key, value=value, max_age=max_age, httponly=httponly, **default_config)
 
 

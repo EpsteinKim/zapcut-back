@@ -71,7 +71,7 @@ frozenlist==1.7.0
     #   aiosignal
 google-auth==2.40.2
     # via google-genai
-google-genai==1.32.0
+google-genai==1.38.0
     # via -r requirements.in
 greenlet==3.2.3
     # via playwright

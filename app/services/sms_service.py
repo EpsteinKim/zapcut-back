@@ -14,7 +14,7 @@ class SMSService:
         self.aligo_sender = "010-7597-0292"
         self.aligo_send_url = "https://apis.aligo.in/send/"
 
-    async def send_verify_code(self, phone_number: str) -> bool:
+    async def send_verify_code(self, phone_number: str):
         send_count = redis_helper.phone_verify.increment_send_count(phone_number)
         if send_count > 5:
             remaining_time = redis_helper.phone_verify.get_send_count_ttl(phone_number)

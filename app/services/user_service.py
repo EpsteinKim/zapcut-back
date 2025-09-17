@@ -128,7 +128,7 @@ class UserService:
         redis_helper.jwt.blacklist(token, expires_delta)
 
     def logout_all_devices(self, user_id: str):
-        tokens = redis_helper.jwt.get_all_refresh_tokens(user_id)
+        tokens = redis_helper.jwt.get_all_tokens(user_id, "refresh_token")
         for token in tokens:
             try:
                 payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"], options={"verify_exp": False})

@@ -16,7 +16,7 @@ async def health_check():
     return {"status": "healthy", "service": "zapcut-video-renderer"}
 
 
-# http://k8s-zapcutre-zapcutre-d0c6c19b7d-70d5c71579dbbe26.elb.ap-northeast-2.amazonaws.com/render
+# http://k8s-zapcutre-zapcutre-ebac054c8b-f777e591bcf6d2e8.elb.ap-northeast-2.amazonaws.com
 @app.post("/api/v1/shorts/video")
 async def create_shorts_video(request: ShortsVideoRequest):
     service = VideoService()

@@ -5,7 +5,13 @@ from typing import List, TypeVar, Generic, ClassVar, Literal
 from fastapi import Query
 
 from app.core.config import BGM_PATH, FONT_PATH
-from app.entity.user import User
+
+# EKS worker 환경에서는 User 모델이 필요하지 않으므로 조건부 import
+try:
+    from app.entity.user import User
+except ImportError:
+    # EKS worker 환경에서는 User 없이 작동
+    User = None
 
 T = TypeVar("T")
 

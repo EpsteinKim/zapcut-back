@@ -65,7 +65,7 @@ def decode_token_and_verify(
         raise e
 
 
-def create_impersonation_token(admin_user_id: str, target_user_id: str, device_id: str) -> tuple[str, str]:
+def create_impersonation_token(admin_user_id: str, target_user_id: str, device_id: str):
     expire = datetime.utcnow() + timedelta(minutes=settings.impersonation_token_expire_minutes)
     to_encode = {
         "sub": target_user_id,

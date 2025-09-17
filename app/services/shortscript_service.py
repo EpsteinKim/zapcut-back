@@ -39,7 +39,7 @@ class ShortScriptService:
         scripts = []
         deleted_scripts_ids = []
         for result in results:
-            if datetime.now() > result.created_at + timedelta(days=2):
+            if datetime.now() > (result.created_at + timedelta(days=5)) if result.created_at else None:
                 deleted_scripts_ids.append(result.id)
                 continue
 
@@ -55,14 +55,14 @@ class ShortScriptService:
             results = session.exec(statement).all()
 
             if not results:
-                return False
+                return []
 
             try:
                 for result in results:
                     result.status = "DELETED"
                     session.add(result)
                 session.commit()
-                return True
+                return []
             except Exception as e:
                 session.rollback()
                 raise ServerException("스크립트 만료 처리 중 오류가 발생했습니다.", data=str(e))
@@ -87,11 +87,11 @@ class ShortScriptService:
             raise ServerException("스크립트 삭제 중 오류가 발생했습니다.", data=str(e))
 
     async def upsert_script(self, session: Session, user_id: int, request: ShortsScriptUpsertRequest):
-        if request.id > 0:
+        if request.id and request.id > 0:
             statement = select(Shorts).where(Shorts.id == int(request.id), Shorts.user_id == user_id)
             result = session.exec(statement).first()
 
-            if result:
+            if result and result.created_at:
                 if result.created_at < datetime.now() - timedelta(days=2):
                     result.status = "DELETED"
                     session.add(result)

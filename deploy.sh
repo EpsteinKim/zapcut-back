@@ -399,11 +399,11 @@ logs() {
     case $1 in
         blue)
             echo "🔵 블루 환경 로그를 실시간으로 확인합니다... (Ctrl+C로 종료)"
-            ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f zapcut-api-blue"
+            ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f --tail 500 zapcut-api-blue"
             ;;
         green)
             echo "🟢 그린 환경 로그를 실시간으로 확인합니다... (Ctrl+C로 종료)"
-            ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f zapcut-api-green"
+            ssh -q root@zapcut "cd ~/zapcut-back && docker logs -f --tail 500 zapcut-api-green"
             ;;
         nginx)
             echo "🌐 Nginx 로그를 실시간으로 확인합니다... (Ctrl+C로 종료)"
@@ -657,6 +657,8 @@ case $1 in
             init_kubernates $3 $4
         elif [ "$2" = "deploy" ]; then
             kube_deploy
+        elif [ "$2" = "pods" ]; then
+            kubectl get pods -n zapcut-renderer
         else
             echo "Usage: $0 kube {ecr|init|deploy|logs|login|top}"
             exit 1

@@ -12,9 +12,11 @@ formatter = logging.Formatter("\033[91m[%(levelname)s]\033[0m %(message)s")
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
+type ErrorData = dict | str | None
+
 
 class BaseHTTPException(HTTPException):
-    def __init__(self, status_code: int, message: str, data: dict | None = None):
+    def __init__(self, status_code: int, message: str, data: ErrorData = None):
         super().__init__(status_code=status_code, detail=message)
         self.message = message  # 메시지를 별도 속성으로 저장
 
@@ -35,7 +37,7 @@ class BadRequestException(BaseHTTPException):
     예: 필수 필드 누락, 잘못된 데이터 형식, 유효성 검사 실패
     """
 
-    def __init__(self, message: str = "잘못된 요청입니다", data: dict | None = None):
+    def __init__(self, message: str = "잘못된 요청입니다", data: ErrorData = None):
         super().__init__(status_code=400, message=message, data=data)
 
 
@@ -45,7 +47,7 @@ class UnauthorizedException(BaseHTTPException):
     예: 로그인하지 않은 사용자의 접근, 만료된 토큰
     """
 
-    def __init__(self, message: str = "인증이 필요합니다", data: dict | None = None):
+    def __init__(self, message: str = "인증이 필요합니다", data: ErrorData = None):
         super().__init__(status_code=401, message=message, data=data)
 
 
@@ -55,7 +57,7 @@ class ForbiddenException(BaseHTTPException):
     예: 일반 사용자가 관리자 전용 기능에 접근 시도
     """
 
-    def __init__(self, message: str = "접근이 거부되었습니다", data: dict | None = None):
+    def __init__(self, message: str = "접근이 거부되었습니다", data: ErrorData = None):
         super().__init__(status_code=403, message=message, data=data)
 
 
@@ -65,7 +67,7 @@ class NotFoundException(BaseHTTPException):
     예: 존재하지 않는 사용자 ID로 조회, 삭제된 게시물 접근
     """
 
-    def __init__(self, message: str = "요청한 리소스를 찾을 수 없습니다", data: dict | None = None):
+    def __init__(self, message: str = "요청한 리소스를 찾을 수 없습니다", data: ErrorData = None):
         super().__init__(status_code=404, message=message, data=data)
 
 
@@ -75,7 +77,7 @@ class MethodNotAllowedException(BaseHTTPException):
     예: GET만 지원하는 엔드포인트에 POST 요청
     """
 
-    def __init__(self, message: str = "허용되지 않은 메소드입니다", data: dict | None = None):
+    def __init__(self, message: str = "허용되지 않은 메소드입니다", data: ErrorData = None):
         super().__init__(status_code=405, message=message, data=data)
 
 
@@ -85,7 +87,7 @@ class ConflictException(BaseHTTPException):
     예: 이미 존재하는 사용자명으로 회원가입, 동시 편집 충돌
     """
 
-    def __init__(self, message: str = "요청이 현재 서버의 상태와 충돌합니다", data: dict | None = None):
+    def __init__(self, message: str = "요청이 현재 서버의 상태와 충돌합니다", data: ErrorData = None):
         super().__init__(status_code=409, message=message, data=data)
 
 
@@ -95,7 +97,7 @@ class UnprocessableEntityException(BaseHTTPException):
     예: 유효성 검사 실패, 비즈니스 로직 위반
     """
 
-    def __init__(self, message: str = "처리할 수 없는 입력입니다", data: dict | None = None):
+    def __init__(self, message: str = "처리할 수 없는 입력입니다", data: ErrorData = None):
         super().__init__(status_code=422, message=message, data=data)
 
 
@@ -105,7 +107,7 @@ class TooManyRequestsException(BaseHTTPException):
     예: API 요청 제한 초과, DDoS 방지
     """
 
-    def __init__(self, message: str = "너무 많은 요청이 발생했습니다", data: dict | None = None):
+    def __init__(self, message: str = "너무 많은 요청이 발생했습니다", data: ErrorData = None):
         super().__init__(status_code=429, message=message, data=data)
 
 
@@ -115,7 +117,7 @@ class ServerException(BaseHTTPException):
     예: 데이터베이스 연결 실패, 외부 서비스 오류
     """
 
-    def __init__(self, message: str = "서버 내부 오류가 발생했습니다", data: dict | None = None):
+    def __init__(self, message: str = "서버 내부 오류가 발생했습니다", data: ErrorData = None):
         super().__init__(status_code=500, message=message, data=data)
 
 
@@ -125,5 +127,5 @@ class ServiceUnavailableException(BaseHTTPException):
     예: 서버 유지보수, 과부하 상태
     """
 
-    def __init__(self, message: str = "서비스를 일시적으로 사용할 수 없습니다", data: dict | None = None):
+    def __init__(self, message: str = "서비스를 일시적으로 사용할 수 없습니다", data: ErrorData = None):
         super().__init__(status_code=503, message=message, data=data)

@@ -94,7 +94,8 @@ class VideoService:
         video_clips = []
         text_clips = []
         audio_clips = []
-        total_duration = sum(scene.duration for scene in request.scenes)
+        total_duration = sum(scene.duration for scene in request.scenes if scene.duration is not None)
+        music_path = None
 
         try:
             background = ColorClip(size=(self.video_width, self.video_height), color=(0, 0, 0), duration=total_duration)

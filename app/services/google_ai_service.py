@@ -80,11 +80,9 @@ class GoogleAIService:
             {page_html}
         """
 
-        content = [user_prompt]
-
         response = await self.client.aio.models.generate_content(
             model="gemini-2.5-flash",
-            contents=content,
+            contents=user_prompt,
             config=genai.types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",
@@ -93,7 +91,7 @@ class GoogleAIService:
             ),
         )
 
-        return json.loads(response.text)
+        return json.loads(str(response.text))
 
     async def translate(self, string: str, language: str):
         system_prompt = f"""
@@ -137,7 +135,7 @@ class GoogleAIService:
 
                 for part in response.candidates[0].content.parts:
                     if part.text is not None:
-                        print(part.text)
+                        continue
                     elif part.inline_data is not None:
                         image = decode_base64_to_bytesio(part.inline_data.data)
                         download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
@@ -180,45 +178,43 @@ class GoogleAIService:
             Adjust your speaking pace to ensure the entire text is delivered within the time limit.
             """
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                response = await self.client.aio.models.generate_content(
-                    model="gemini-2.5-flash-preview-tts",
-                    contents=prompt,
-                    config=genai.types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        temperature=voice_temperature,
-                        speech_config=genai.types.SpeechConfig(
-                            voice_config=genai.types.VoiceConfig(
-                                prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
-                                    voice_name=voice_model,
-                                )
-                            ),
+        try:
+            response = await self.client.aio.models.generate_content(
+                model="gemini-2.5-flash-preview-tts",
+                contents=prompt,
+                config=genai.types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    temperature=voice_temperature,
+                    speech_config=genai.types.SpeechConfig(
+                        voice_config=genai.types.VoiceConfig(
+                            prebuilt_voice_config=genai.types.PrebuiltVoiceConfig(
+                                voice_name=voice_model,
+                            )
                         ),
                     ),
-                )
-                data = response.candidates[0].content.parts[0].inline_data.data
-                audio_data = decode_base64_data(data)
-                temp_wav_path = os.path.join(self.temp_dir, f"tts_audio_{uuid.uuid4()}.mp3")
-                audio = AudioSegment(audio_data, sample_width=2, frame_rate=24000, channels=1)
-                try:
-                    audio.export(temp_wav_path, format="mp3", parameters=["-q:a", "0"])
-                except Exception as export_error:
-                    logging.error(f"audio.export 실패: {str(export_error)}")
-                    raise ServerException(f"오디오 export 실패: {str(export_error)}")
+                ),
+            )
 
-                # 파일이 생성되었는지 확인
-                if not os.path.exists(temp_wav_path):
-                    raise ServerException(f"TTS 오디오 파일 생성 실패: {temp_wav_path}")
+            data = response.candidates[0].content.parts[0].inline_data.data
+            audio_data = decode_base64_data(data)
 
-                logging.info(f"TTS 파일 생성 성공: {temp_wav_path}")
-                return temp_wav_path
+            temp_wav_path = os.path.join(self.temp_dir, f"tts_audio_{uuid.uuid4()}.mp3")
+            audio = AudioSegment(audio_data, sample_width=2, frame_rate=24000, channels=1)
+            try:
+                audio.export(temp_wav_path, format="mp3", parameters=["-q:a", "0"])
+            except Exception as export_error:
+                logging.error(f"audio.export 실패: {str(export_error)}")
+                raise ServerException(f"오디오 export 실패: {str(export_error)}")
 
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise ServerException(f"TTS 생성에 {max_retries}번 시도 후 실패했습니다: {str(e)}")
-                await asyncio.sleep(1)
+            # 파일이 생성되었는지 확인
+            if not os.path.exists(temp_wav_path):
+                raise ServerException(f"TTS 오디오 파일 생성 실패: {temp_wav_path}")
+
+            logging.info(f"TTS 파일 생성 성공: {temp_wav_path}")
+            return temp_wav_path
+
+        except Exception as e:
+            raise ServerException(f"TTS 생성에 실패했습니다", str(e))
 
     async def summarize_text(self, text: str):
         system_prompt = f"""
@@ -279,7 +275,7 @@ class GoogleAIService:
             ),
         )
 
-        return json.loads(response.text)
+        return json.loads(str(response.text))
 
     async def summarize(self, text: str):
         system_prompt = f"""
