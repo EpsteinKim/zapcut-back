@@ -8,8 +8,10 @@ WORKDIR /zapcut-back
 ENV TZ=Asia/Seoul
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# 시스템 의존성 설치 (비디오 처리, 오디오 처리, OpenCV, Chromium 등을 위한 패키지)
-RUN apt-get update && apt-get install -y \
+# 시스템 의존성 설치 캐싱
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt \
+    apt-get update && apt-get install -y \
     ffmpeg \
     libsm6 \
     libxext6 \
@@ -27,22 +29,25 @@ RUN apt-get update && apt-get install -y \
     chromium \
     && rm -rf /var/lib/apt/lists/*
 
-# requirements 파일 복사 및 의존성 설치
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 환경 변수 설정
+# 환경 변수 설정 (먼저 설정하여 레이어 캐싱 최적화)
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/zapcut-back
 ENV ENV=production
 ENV DEPLOYMENT_DATE=${DEPLOYMENT_DATE}
 
+# requirements 파일만 먼저 복사 (의존성 변경 시에만 재빌드)
+COPY requirements.txt .
+
+# 의존성 설치 (requirements.txt 변경 시에만 재실행)
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r requirements.txt
+
 # temp 디렉토리 생성 및 권한 설정
 RUN mkdir -p /zapcut-back/app/temp && \
     chmod 755 /zapcut-back/app/temp
 
-# 애플리케이션 소스 코드 복사
+# 애플리케이션 소스 코드 복사 (소스 변경 시에만 재실행)
 COPY . .
 
 

@@ -16,15 +16,16 @@ parts/
 sdist/
 var/
 wheels/
+share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Virtual environments
+# Virtual Environment
 venv/
-env/
 ENV/
+env/
 .venv/
 
 # IDE
@@ -47,50 +48,40 @@ Thumbs.db
 .git/
 .gitignore
 
-# Docker
-Dockerfile
-docker-compose.yml
-.dockerignore
-
 # Logs
 *.log
 logs/
+nginx-logs/
 
 # Temporary files
 temp/
 tmp/
 *.tmp
-*.temp
+temp_blue/
+temp_green/
 
-#cursor
-.cursorrules
+# Database
+*.db
+*.sqlite
+*.rdb
 
-# Environment files (보안상 제외)
-.env
-.env.local
-.env.production
+# Docker (rsync로 서버에 전송되므로 빌드 컨텍스트에서만 제외)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Deployment
+deploy.sh
+setup.sh
+video_rendering_eks/
 
 # Test files
-tests/
-*_test.py
-test_*.py
+*test*
+test_*
 
 # Documentation
 README.md
-docs/
 *.md
 
-# Large media files (필요시 주석 해제)
-# *.mp4
-# *.avi
-# *.mov
-# *.mp3
-# *.wav
-
-# Node modules (있다면)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log* 
-
-*.rdb
+# Configuration
+.env.example
