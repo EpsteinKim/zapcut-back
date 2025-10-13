@@ -1,5 +1,5 @@
 from moviepy import AudioFileClip
-from app.core.config import EFFECT_PATH
+from app.core.config import EFFECT_PATH, ROOT_DIR
 from app.models.schemas import SoundEffect, Scene
 import librosa
 import numpy as np
@@ -34,8 +34,8 @@ class AudioProcessor:
 
     async def get_audio_subclip(self, audio_url: str, text_scenes: list[str]) -> List[Dict[str, Any]]:
         # 1개의 원소만 있는 경우 바로 처리
+        audio_path = await self.io_processor.download_file(audio_url)
         if len(text_scenes) == 1:
-            audio_path = await self.io_processor.download_file(audio_url)
             total_audio_duration = self.get_audio_duration(audio_path)
             return [
                 {
@@ -45,7 +45,6 @@ class AudioProcessor:
                 }
             ]
         else:
-            audio_path = await self.io_processor.download_file(audio_url)
             y, sr = librosa.load(audio_path)
             audio = AudioSegment.from_file(audio_path)
             times = librosa.times_like(

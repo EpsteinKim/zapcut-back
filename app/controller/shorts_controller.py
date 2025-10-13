@@ -32,14 +32,10 @@ audio_processor = AudioProcessor()
 settings = get_settings()
 
 
-@router.get("/script/{script_id}")
-def get_script(
-    script_id: str, current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)
-):
-    result = services.shortscript.get_script(services.session, current_user_info.user.id, script_id)
-    if not result:
-        return ApiResponse.error("스크립트를 찾을 수 없습니다.")
-    return ApiResponse.with_data(result)
+@router.get("/script/count")
+def get_script_count(current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)):
+    count = services.shortscript.get_script_count(services.session, current_user_info.user.id)
+    return ApiResponse.with_data(count)
 
 
 @router.get("/scripts")
@@ -48,10 +44,14 @@ def get_all_scripts(current_user_info=Depends(get_current_user_info), services: 
     return ApiResponse.with_data(result)
 
 
-@router.get("/script/count")
-def get_script_count(current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)):
-    count = services.shortscript.get_script_count(services.session, current_user_info.user.id)
-    return ApiResponse.with_data(count)
+@router.get("/script/{script_id}")
+def get_script(
+    script_id: str, current_user_info=Depends(get_current_user_info), services: Services = Depends(get_services)
+):
+    result = services.shortscript.get_script(services.session, current_user_info.user.id, script_id)
+    if not result:
+        return ApiResponse.error("스크립트를 찾을 수 없습니다.")
+    return ApiResponse.with_data(result)
 
 
 @router.post("/script")

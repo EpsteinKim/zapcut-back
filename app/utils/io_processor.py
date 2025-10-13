@@ -19,6 +19,23 @@ class IOProcessor:
     def __init__(self):
         # self.temp_dir = tempfile.mkdtemp()  # 기존 코드
         self.temp_dir = get_temp_dir("io_processor")
+        self._aiohttp_session = None
+
+    async def _get_aiohttp_session(self):
+        if self._aiohttp_session is None or self._aiohttp_session.closed:
+            connector = aiohttp.TCPConnector(
+                limit=100,
+                limit_per_host=30,
+                ttl_dns_cache=300,
+                use_dns_cache=True,
+            )
+            timeout = aiohttp.ClientTimeout(total=60, connect=10)
+            self._aiohttp_session = aiohttp.ClientSession(connector=connector, timeout=timeout)
+        return self._aiohttp_session
+
+    async def close(self):
+        if self._aiohttp_session and not self._aiohttp_session.closed:
+            await self._aiohttp_session.close()
 
     async def download_file(self, url: str) -> str:
         if os.path.isfile(url):
@@ -26,34 +43,34 @@ class IOProcessor:
 
         temp_file_path = None
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        raise ServerException(f"Failed to download file from {url}, status: {response.status}")
+            session = await self._get_aiohttp_session()
+            async with session.get(url) as response:
+                if response.status != 200:
+                    raise ServerException(f"Failed to download file from {url}, status: {response.status}")
 
-                    content_type = response.headers.get("Content-Type", "")
-                    content_length = response.headers.get("Content-Length")
-                    expected_size = int(content_length) if content_length else None
+                content_type = response.headers.get("Content-Type", "")
+                content_length = response.headers.get("Content-Length")
+                expected_size = int(content_length) if content_length else None
 
-                    url_ext = url.split(".")[-1].split("?")[0].split("#")[0]
-                    if len(url_ext) <= 5 and url_ext.isalnum():
-                        file_extension = f".{url_ext}"
-                    else:
-                        file_extension = self._get_extension_from_content_type(content_type)
+                url_ext = url.split(".")[-1].split("?")[0].split("#")[0]
+                if len(url_ext) <= 5 and url_ext.isalnum():
+                    file_extension = f".{url_ext}"
+                else:
+                    file_extension = self._get_extension_from_content_type(content_type)
 
-                    temp_file_path = os.path.join(self.temp_dir, f"temp_file_{uuid.uuid4()}{file_extension}")
+                temp_file_path = os.path.join(self.temp_dir, f"temp_file_{uuid.uuid4()}{file_extension}")
 
-                    with open(temp_file_path, "wb") as f:
-                        async for chunk in response.content.iter_chunked(8192):
-                            f.write(chunk)
+                with open(temp_file_path, "wb") as f:
+                    async for chunk in response.content.iter_chunked(8192):
+                        f.write(chunk)
 
-                    # 파일 무결성 검증
-                    if not self._verify_file_integrity(temp_file_path, expected_size, content_type):
-                        if os.path.exists(temp_file_path):
-                            os.remove(temp_file_path)
-                        raise ServerException(f"다운로드된 파일이 손상되었거나 올바르지 않습니다: {url}")
+                # 파일 무결성 검증
+                if not self._verify_file_integrity(temp_file_path, expected_size, content_type):
+                    if os.path.exists(temp_file_path):
+                        os.remove(temp_file_path)
+                    raise ServerException(f"다운로드된 파일이 손상되었거나 올바르지 않습니다: {url}")
 
-                    return temp_file_path
+                return temp_file_path
 
         except Exception as e:
             if temp_file_path and os.path.exists(temp_file_path):
@@ -78,12 +95,12 @@ class IOProcessor:
             content_type = mimetypes.guess_type(f"file.{ext}")[0] or "application/octet-stream"
 
             # Get presigned URL and upload file using single session
-            async with aiohttp.ClientSession() as session:
-                # Get presigned URL
-                async with session.get(presigned_url, headers={"Content-Type": content_type}) as response:
-                    if response.status != 200:
-                        raise ServerException("Failed to get presigned URL")
-                    data = await response.json()
+            session = await self._get_aiohttp_session()
+            # Get presigned URL
+            async with session.get(presigned_url, headers={"Content-Type": content_type}) as response:
+                if response.status != 200:
+                    raise ServerException("Failed to get presigned URL")
+                data = await response.json()
 
                 upload_url = data["uploadUrl"]
                 object_url = upload_url.split("?")[0].replace("s3.ap-northeast-2.amazonaws.com/", "")
@@ -93,11 +110,11 @@ class IOProcessor:
                 file_content = file_data.read()  # Read entire content into memory
                 file_data.close()  # Explicitly close the BytesIO object after reading
 
-                async with session.put(
-                    upload_url, headers={"Content-Type": content_type}, data=file_content
-                ) as upload_response:
-                    if upload_response.status != 200:
-                        raise ServerException("파일 업로드에 실패했습니다.")
+            async with session.put(
+                upload_url, headers={"Content-Type": content_type}, data=file_content
+            ) as upload_response:
+                if upload_response.status != 200:
+                    raise ServerException("파일 업로드에 실패했습니다.")
 
             return object_url
         except Exception as e:

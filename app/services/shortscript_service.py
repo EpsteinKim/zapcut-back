@@ -15,6 +15,29 @@ class ShortScriptService:
     def __init__(self):
         pass
 
+    def _cleanup_expired_scripts(self, session: Session, user_id: int) -> None:
+        statement = select(Shorts).where(Shorts.user_id == user_id, Shorts.status != "DELETED")
+        results = session.exec(statement).all()
+        deleted_scripts_ids = []
+
+        for result in results:
+            if datetime.now() > (result.created_at + timedelta(days=5)) if result.created_at else None:
+                deleted_scripts_ids.append(result.id)
+
+        if len(deleted_scripts_ids) > 0:
+            statement = select(Shorts).where(Shorts.id.in_(deleted_scripts_ids), Shorts.user_id == user_id)
+            expired_results = session.exec(statement).all()
+
+            if expired_results:
+                try:
+                    for result in expired_results:
+                        result.status = "DELETED"
+                        session.add(result)
+                    session.commit()
+                except Exception as e:
+                    session.rollback()
+                    raise ServerException("스크립트 만료 처리 중 오류가 발생했습니다.", data=str(e))
+
     def get_script(self, session: Session, user_id: int, script_id: int) -> Optional[ShortsScript]:
         statement = select(Shorts).where(Shorts.id == script_id, Shorts.user_id == user_id, Shorts.status != "DELETED")
         result = session.exec(statement).first()
@@ -30,6 +53,8 @@ class ShortScriptService:
         return script
 
     def get_all_scripts(self, session: Session, user_id: int) -> list[ShortsScript]:
+        self._cleanup_expired_scripts(session, user_id)
+
         statement = (
             select(Shorts)
             .where(Shorts.user_id == user_id, Shorts.status != "DELETED")
@@ -37,35 +62,14 @@ class ShortScriptService:
         )
         results = session.exec(statement).all()
         scripts = []
-        deleted_scripts_ids = []
-        for result in results:
-            if datetime.now() > (result.created_at + timedelta(days=5)) if result.created_at else None:
-                deleted_scripts_ids.append(result.id)
-                continue
 
+        for result in results:
             script = ShortsScript(**result.shorts_json)
             script.id = result.id
             script.title = result.title
             script.created_at = result.created_at
             script.updated_at = result.updated_at
             scripts.append(script)
-
-        if len(deleted_scripts_ids) > 0:
-            statement = select(Shorts).where(Shorts.id.in_(deleted_scripts_ids), Shorts.user_id == user_id)
-            results = session.exec(statement).all()
-
-            if not results:
-                return []
-
-            try:
-                for result in results:
-                    result.status = "DELETED"
-                    session.add(result)
-                session.commit()
-                return []
-            except Exception as e:
-                session.rollback()
-                raise ServerException("스크립트 만료 처리 중 오류가 발생했습니다.", data=str(e))
 
         return scripts
 
@@ -139,9 +143,10 @@ class ShortScriptService:
             return {"id": shorts.id, "title": shorts.title}
 
     def get_script_count(self, session: Session, user_id: int) -> int:
+        self._cleanup_expired_scripts(session, user_id)
+
         statement = select(func.count(Shorts.id)).where(Shorts.user_id == user_id, Shorts.status != "DELETED")
         result = session.exec(statement).first()
-        print(result)
         return result or 0
 
     def batch_delete_scripts(self, session: Session, user_id: int, script_ids: list[int]) -> bool:

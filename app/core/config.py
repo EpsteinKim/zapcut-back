@@ -61,6 +61,8 @@ class Settings(BaseSettings):
     # Video Renderer (external worker)
     kube_api_base: str
 
+    open_router_api_key: str
+
     class Config:
         env_file = str(ROOT_DIR / ".env")
 

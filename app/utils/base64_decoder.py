@@ -22,3 +22,8 @@ def decode_base64_data(data: Union[str, bytes]) -> bytes:
 def decode_base64_to_bytesio(data: Union[str, bytes]) -> BytesIO:
     decoded_data = decode_base64_data(data)
     return BytesIO(decoded_data)
+
+
+def encode_audio_to_base64(audio_path: str):
+    with open(audio_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")

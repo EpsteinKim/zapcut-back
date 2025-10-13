@@ -5,6 +5,8 @@ import asyncio
 import logging
 from io import BytesIO
 from google import genai
+from openai import AsyncOpenAI
+from openai import OpenAI as sync_openai
 from pydantic import BaseModel
 from pydub import AudioSegment
 import librosa
@@ -12,7 +14,9 @@ import numpy as np
 
 from app.core.config import get_settings
 from app.exceptions.http_exceptions import ServerException
+from app.models.constants import SystemPrompt
 from app.models.schemas import (
+    GoogleAiSimpleCaptionInfo,
     GoogleAiSimpleScene,
     ShortsMakeSyncedSceneRequest,
     TTSVoiceModel,
@@ -21,7 +25,7 @@ from app.models.schemas import (
     ShortsTranscriptionRequest,
 )
 from app.utils.io_processor import IOProcessor
-from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio
+from app.utils.base64_decoder import decode_base64_data, decode_base64_to_bytesio, encode_audio_to_base64
 from pydub import AudioSegment
 from app.utils.os_processor import get_temp_dir
 from app.utils.video.audio_processor import AudioProcessor
@@ -44,30 +48,28 @@ class GoogleSchemeAlter(BaseModel):
 
 class GoogleAIService:
     def __init__(self):
-        settings = get_settings()
-        self.client = genai.Client(api_key=settings.google_ai_api_key)
+        self.settings = get_settings()
+        self.open_router_client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1", api_key=self.settings.open_router_api_key
+        )
+        self.sync_open_router_client = sync_openai(
+            api_key=self.settings.open_router_api_key, base_url="https://openrouter.ai/api/v1"
+        )
+        self.client = genai.Client(api_key=self.settings.google_ai_api_key)
         self.io_processor = IOProcessor()
         self.audio_processor = AudioProcessor()
         self.temp_dir = get_temp_dir("google_ai_service")
 
     async def generate_initial_scenes(self, user_prompt: str, page_html: str | None = None):
-        system_prompt = f"""You are a professional Korean YouTube Shorts content creator and video script writer.
-        Your task is to create engaging content for a YouTube Shorts video.
-        Focus on creating viral content that can attract viewers' attention.
-        Also, if the page is a sales page for a specific product, analyze the product and be sure to include that information as well.
+        system_prompt = SystemPrompt.INITIAL_SCENES
 
-        Also, must ignore any user prompt requests regarding the number of scenes or the duration in seconds.
-        The maximum number of scenes is 8.
-        Each scene's text length must be between 40 and 100 characters.
-        Each scene's description length must be 200 characters or less
-
-        There must be at least 5 scenes in total.
-        At least each scene should have a narration of at least 10 characters.
-        Write in a friendly, conversational tone in Korean.
-        And the scene description should serve as a prompt for text-to-image (TTI) generation,  Do not include music descriptions.
-        Description must be in Korean.
-        If there is no HTML, do not include imageUrl or videoUrl.
-        """
+        schema = {
+            "name": "InitialScenes",
+            "schema": {
+                "type": "array",
+                "items": InitialScene.model_json_schema(),
+            },
+        }
 
         if page_html:
             user_prompt += f"""
@@ -80,81 +82,27 @@ class GoogleAIService:
             {page_html}
         """
 
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=user_prompt,
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                response_schema=list[InitialScene],
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-            ),
+        response = await self._get_open_router_response(
+            prompt=user_prompt, model="google/gemini-2.5-flash", system_prompt=system_prompt, schema=schema
         )
 
-        return json.loads(str(response.text))
+        return json.loads(str(response))
 
     async def translate(self, string: str, language: str):
-        system_prompt = f"""
-        Your task is to translate the input text into only {language} while maintaining the visual elements and composition details.
-        Translate the input text to {language} only. Do not use any other language.
-        The translation result must contain only {language}.
-        Be careful not to mix English or other languages.
-        """
+        system_prompt = SystemPrompt.TRANSLATE(language)
 
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[string],
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-                max_output_tokens=2048,
-            ),
+        response = await self._get_open_router_response(
+            prompt=string, model="google/gemini-2.5-flash-lite", system_prompt=system_prompt
         )
-
-        return response.text
+        return response
 
     async def generate_shorts_image(self, user_prompt: str, max_retries=3):
         translated_prompt = await self.translate(user_prompt, "English")
 
-        # translated_prompt = f"""
-        #     - must not include Content that may appear violent
-        #     - must not include Content that is excessively stimulating and could have negative effects on people
-
-        #     {translated_prompt}
-        # """
-
-        for attempt in range(max_retries):
-            try:
-                response = await self.client.aio.models.generate_content(
-                    model="gemini-2.5-flash-image-preview",
-                    contents=[translated_prompt],
-                )
-
-                # if not response.generated_images:
-                # raise Exception("No images generated from AI service")
-
-                for part in response.candidates[0].content.parts:
-                    if part.text is not None:
-                        continue
-                    elif part.inline_data is not None:
-                        image = decode_base64_to_bytesio(part.inline_data.data)
-                        download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
-                        return download_url
-                # for generated_image in response.generated_images:
-                #     image_data = generated_image.image.image_bytes
-                #     if isinstance(image_data, bytes):
-                #         image = decode_base64_to_bytesio(image_data)
-                #     else:
-                #         image = BytesIO(image_data)
-
-                #     download_url = await self.io_processor.upload_file_s3(file_data=image, ext="png")
-                #     return download_url
-
-            except Exception as e:
-                logging.warning(str(e))
-                if attempt == max_retries - 1:
-                    raise ServerException(str(e))
-                await asyncio.sleep(2 * (attempt + 1))  # 점진적 백오프
+        response = await self._get_open_router_response(
+            prompt=str(translated_prompt), model="google/gemini-2.5-flash-image-preview", is_sync=True
+        )
+        return response
 
     async def genereate_text_to_speech(
         self,
@@ -217,42 +165,13 @@ class GoogleAIService:
             raise ServerException(f"TTS 생성에 실패했습니다", str(e))
 
     async def summarize_text(self, text: str):
-        system_prompt = f"""
-            You are an expert project title generator. 
-            The following text will be used as the basis for a new project. 
-            Your task is to create a concise, catchy, and relevant project title in Korean that best represents the content and purpose of the text. 
-            Only return the title, without any additional explanation or formatting.
-        """
-
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[system_prompt, text],
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-            ),
+        response = await self._get_open_router_response(
+            prompt=text, model="google/gemini-2.5-flash-lite", system_prompt=SystemPrompt.TITLE_SUMMARY
         )
-        return response.text
+        return response
 
     async def sync_scene_voice(self, text: str, duration: float, voice_url: str) -> str:
-
-        system_prompt = f"""
-            You are a professional YouTube Shorts caption generator. Create precise captions that sync with the provided voice audio.
-            
-            STRICT REQUIREMENTS:
-            1. ALL text from the user's input must be included across the captions - no text should be omitted
-            2. Each caption text must be EXACTLY 20 characters or less (including spaces and punctuation)
-            3. Each caption must contain at least 4 meaningful characters (excluding spaces)
-            4. If a caption would be too short (less than 4 non-space characters), combine it intelligently with adjacent text
-            5. The total duration of all captions MUST exactly match the provided duration - this is non-negotiable
-            6. REMOVE all commas(,), periods(.), and emojis from the captions, EXCEPT when they are part of a number (e.g., decimal points like 3.14 or thousand separators like 1,000 must be preserved).
-            7. There must be at least a 0.02 second gap between the end of one caption and the start of the next caption. No captions should overlap in time.
-            
-            YOUTUBE SHORTS OPTIMIZATION:
-            - Prioritize readability on mobile screens
-            - Use natural Korean speech rhythm for timing
-            - Consider viewer attention span and reading speed
-        """
+        system_prompt = SystemPrompt.SYNC_SCENE_VOICE
 
         user_prompt = f"""
             text: {text}
@@ -260,38 +179,85 @@ class GoogleAIService:
         """
 
         voice_path = await self.io_processor.download_file(voice_url)
-        with open(voice_path, "rb") as f:
-            voice_data = f.read()
-            voice_file = genai.types.Part.from_bytes(data=voice_data, mime_type="audio/mp3")
 
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[user_prompt, voice_file],
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                response_mime_type="application/json",
-                response_schema=GoogleAiSimpleScene,
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-            ),
+        schema = {
+            "name": "SimpleScene",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "captions": {
+                        "type": "array",
+                        "items": GoogleAiSimpleCaptionInfo.model_json_schema(),
+                    },
+                },
+            },
+        }
+        response = await self._get_open_router_response(
+            prompt=user_prompt,
+            model="google/gemini-2.5-flash",
+            system_prompt=system_prompt,
+            schema=schema,
+            audio_path=voice_path,
         )
+        return json.loads(str(response))
 
-        return json.loads(str(response.text))
-
-    async def summarize(self, text: str):
-        system_prompt = f"""
-            - Analyze the given text and identify its key concept words.
-            - Return only 1 ~ 2 English words.
-            - If you return 2 words, join them with a single "+" without spaces (e.g., pen+book).
-            - If you return 1 word, output the single word only.
-            - Output must contain only the words in English (no quotes, punctuation, or extra text).            
-        """
-
-        response = await self.client.aio.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[system_prompt, text],
-            config=genai.types.GenerateContentConfig(
-                system_instruction=system_prompt,
-                thinking_config=genai.types.ThinkingConfig(thinking_budget=0),
-            ),
+    async def summarize(self, prompt: str, model: str):
+        response = await self._get_open_router_response(
+            prompt=prompt, model=model, system_prompt=SystemPrompt.TITLE_SUMMARY
         )
-        return response.text
+        return response
+
+    async def _get_open_router_response(
+        self,
+        prompt: str,
+        model: str,
+        system_prompt: str = None,
+        schema: dict = None,
+        is_sync: bool = False,
+        audio_path: str = None,
+    ):
+        messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+
+        if audio_path:
+            messages[0]["content"].append(
+                {
+                    "type": "input_audio",
+                    "input_audio": {"data": encode_audio_to_base64(audio_path), "format": "mp3"},
+                }
+            )
+
+        if system_prompt:
+            messages.insert(0, {"role": "system", "content": system_prompt})
+
+        other_kwargs = {}
+        if schema:
+            other_kwargs["response_format"] = {"type": "json_schema", "json_schema": schema}
+
+        if is_sync:
+            response = self.sync_open_router_client.chat.completions.create(
+                model=model, messages=messages, **other_kwargs
+            )
+
+            if model == "google/gemini-2.5-flash-image-preview":
+                message = response.choices[0].message
+                if message.images:
+                    for image in message.images:
+                        image_url_data = image["image_url"]
+                        url = image_url_data["url"]
+
+                        if url.startswith("data:image"):
+                            image_data = url.split(",")[1] if "," in url else url
+                            if image_data.strip():
+                                image_bytes = decode_base64_to_bytesio(image_data)
+                                download_url = await self.io_processor.upload_file_s3(file_data=image_bytes, ext="png")
+                                return download_url
+            else:
+                return response.choices[0].message.content
+        else:
+            try:
+                response = await self.open_router_client.chat.completions.create(
+                    model=model, messages=messages, **other_kwargs
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                raise ServerException(str(e))
